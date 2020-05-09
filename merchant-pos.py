@@ -7,12 +7,19 @@ conn = sqlite3.connect('/home/daria/Documents/test/test')
 
 app = Flask(__name__)
 role = "Merchant"
+from_ = "Merchant"
 
 c = conn.cursor()
 adapter.enable_adapter(c)
 
-message = []
-adapter.send(message)
+orderID = 1
+address = "Brunswick"
+parameters = {"orderID" : orderID, "address": address}
+
+
+message = adapter.create_Message_(from_, "Labeler", parameters)
+adapter.send(message, c)
+
 
 conn.commit()
 conn.close()
