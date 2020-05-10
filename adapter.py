@@ -102,9 +102,9 @@ def enable_adapter(c):
         print(query)
         #c.execute(query)
     c.execute("delete from RequestLabel;")
-    c.execute("insert into RequestLabel (orderID, address) values ('1', 'Brunswick'); ")
-    c.execute("insert into RequestLabel (orderID, address) values ('2', 'Bruasdasfnswick'); ")
-    c.execute("insert into RequestLabel (orderID, address) values ('3', 'Brunasdswick'); ")
+    #c.execute("insert into RequestLabel (orderID, address) values ('1', 'Brunswick'); ")
+    #c.execute("insert into RequestLabel (orderID, address) values ('2', 'Bruasdasfnswick'); ")
+    #c.execute("insert into RequestLabel (orderID, address) values ('3', 'Brunasdswick'); ")
 
 
 def find_between( s, first, last ):
@@ -124,72 +124,164 @@ def insert(message, c):
     #OR its contents are inconsistent with a previously stored message of the same or a different name.
 
     print("INSERTION STARTED")
-
+    #Check against the protocol schema ot the db one.
+    #Write an email before implemeting something to get opinion.
     schema = []
     for key in message.parameters:
         schema.append(key)
 
-    print("Schema is " + str(schema))
-    query = "SELECT Name FROM sqlite_master where sql like"
-    query = query + "("
-    query = query + "'%"
-    counter5 = 0
-
-    for parameter in schema:
-        counter5 = counter5 + 1
-        query = query + parameter
-        if counter5 is not len(schema):
-            query = query + "%') AND sql like('%"
-        else:
-            query = query + "%')"
-
-    print(query)
-
-    c.execute(query)
-
-
-    table = c.fetchone()
-    tables = []
     match = None
-    if table is None:
-        print("No such schema available.")
 
-    while table is not None:
-        tables.append(table[0])
-        table = c.fetchone()
-
-    print("Tables added: " + str(tables))
-
-    for table in tables:
-        print("#####################################")
-        print(table)
-        table_name = table
-
-        query = "pragma table_info('" + table + "');"
-        print(query)
-        c.execute(query)
-
-        result = c.fetchall()
-        print(result)
-
-        if len(result) == len(schema):
-            print("Table " + table + " matches the schema of " + str(schema) + ".")
-            match = table
-
-        else:
-            print("Table " + table + " doesn't match the schema of " + str(schema) + ".")
-    print("#####################################")
+    print("Schema is: " + str(schema))
+    for message_type in protocol:
+        print(message_type.list_param)
+        if set(schema) == set(message_type.list_param):
+            match = message_type.message
+            matched_message = message_type
 
     if match is None:
-        print("No table matching the schema was found. UNDEFINED exception.")
+        print("No table matching the schema was found. UNDEFINED-MESSAGE exception.")
+        raise Exception("No table matching the schema was found. UNDEFINED-MESSAGE exception.")
     else:
+        print("Match found: " + match)
+
         #Check if any key or non-nilable parameter of m has nil binding in tself.
+    parameters = message.parameters
+    print("Parameters: " + str(parameters))
+
+    schema_exception = False
+
+    for keys in matched_message.key_param:
+        if str(parameters[keys]) is None or str(parameters[keys]) == '':
+            schema_exception = True
+    for keys in matched_message.in_param:
+        if str(parameters[keys]) is None or str(parameters[keys]) == '':
+            schema_exception = True
+    for keys in matched_message.out_param:
+        if str(parameters[keys]) is None or str(parameters[keys]) == '':
+            schema_exception = True
 
 
+    if schema_exception:
+        print("SCHEMA VIOLATION exception.")
+        raise Exception("SCHEMA VIOLATION exception.")
+    else:
+        query = "SELECT EXISTS" + "(" + "SELECT 1 FROM " + match + " WHERE "
+        counter6=0
+        for params in message.parameters:
+            counter6 = counter6 + 1
+            query = query + params + "=" + "\"" + str(message.parameters[params]) + "\""
+            if counter6 is not len(schema):
+                query = query + " AND "
+            else:
+                query = query + ");"
+        print(query)
+
+        c.execute(query)
+        result = c.fetchone()
+        print(result[0])
+
+        #DOesnt work?
+        if result[0]==1:
+            print("Such entry already exists.")
+            return False
+        else:
+            #Check for every table if despite key values being there, non-key values are DIFFERET from intersections.
+            for message_type in protocol:
+                print(str(message_type.message))
+                intersection = []
+                keys = []
+                for params in message.parameters:
+                    if params in message_type.list_param:
+                        intersection.append(params)
+                print("Intersection with " + message_type.message + " is " + str(intersection))
+                #Finding subset of KEYS in the Intersection
+                for params in intersection:
+                    if params in message_type.key_param:
+                        keys.append(params)
+                print("Keys in the intersection are: " + str(keys))
+
+                #Check if these keys exist in the relation AND the any of other params differ:
+                query = "SELECT EXISTS" + "(" + "SELECT 1 FROM " + message_type.message + " WHERE "
+
+                counter6 = 0
+                for key in keys:
+                    counter6 = counter6 + 1
+                    query = query + str(key) + "='" + str(message.parameters[key]) + "'"
+                    if counter6 is not len(keys):
+                        query = query + " AND "
+                    else:
+                        query = query + ");"
+                print(query)
+
+                c.execute(query)
+                result = c.fetchone()
+                belongs = True
+                print(result)
+                if result[0]==1:
+                    print("ENTRY FIELD WITH SUCH KEYS EXISTS")
+                    for param in intersection:
+                        query = "SELECT " + str(param) + " FROM " + str(message_type.message) + " WHERE "
+
+                        counter7 = 0
+                        for key in keys:
+                            counter7 = counter7 + 1
+                            query = query + str(key) + "=" + str(message.parameters[key])
+
+                            if counter7 is not len(keys):
+                                query = query + " AND "
+                            else:
+                                query = query + ";"
+
+                        print(query)
+                        c.execute(query)
+                        value = c.fetchone()
+
+                        print("Value is " + value[0])
+
+                        #Compare that the value matches the one in the message
+
+                        if str(value[0])!=str(message.parameters[param]):
+                            belongs = False
+
+                    if belongs == False:
+                        print("INCONSISTENT-MESSAGE EXCEPTION")
+                        raise Exception("INCONSISTENT-MESSAGE EXCEPTION")
 
 
+            #Inserting a message into local store
+            insert_query = "INSERT INTO " + match + " ("
 
-    print("inserted")
+            counter7 = 0
+            for columns in schema:
+                counter7 = counter7 + 1
+                insert_query = insert_query + columns
+
+                if counter7 is not len(schema):
+                    insert_query = insert_query + ", "
+                else:
+                    insert_query = insert_query + ")"
+
+            insert_query = insert_query + " VALUES ("
+
+            counter8 = 0
+            for columns in schema:
+                counter8 = counter8 + 1
+                insert_query = insert_query + "'" + str(message.parameters[columns]) + "'"
+
+                if counter8 is not len(schema):
+                    insert_query = insert_query + ", "
+                else:
+                    insert_query = insert_query + ")"
+            insert_query = insert_query + ";"
+
+            print("QUERY: " + insert_query)
+
+            c.execute(insert_query)
+            inserted = c.fetchone()
+            print(inserted)
+
+
     return False
 
 
@@ -242,8 +334,6 @@ def send(message, c):
                 result = c.fetchone()
                 print(result)
 
-
-
                 comparison = "("
                 counter4 = 0
                 for key in intersection:
@@ -264,16 +354,16 @@ def send(message, c):
 
             if not known[parameters] and parameters in message_type.in_param:
                 print("In-adornment violation exception")
+                raise Exception("In-adornment violation exception")
             if known[parameters] and parameters in message_type.out_param:
                 print("Out-adornment violation exception")
+                raise Exception("Out-adornment violation exception")
             if known[parameters] and parameters in message_type.nil_param:
                 print("Nil-adornment violation exception")
+                raise Exception("Nil-adornment violation exception")
 
-        if (insert(message, c)):
-            send(message)
-        else:
-            print("Insertion failed")
-        print("Message sent.")
+        insert(message,c)
+
 
 
 def receive(message):
