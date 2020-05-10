@@ -116,12 +116,79 @@ def find_between( s, first, last ):
         return ""
 
 
-def insert(message):
+def insert(message, c):
     #Check if message matches schema and
     #Throw error if message does NOT match schema
     #OR has an undefined key parameter,
     #OR is a duplicate,
     #OR its contents are inconsistent with a previously stored message of the same or a different name.
+
+    print("INSERTION STARTED")
+
+    schema = []
+    for key in message.parameters:
+        schema.append(key)
+
+    print("Schema is " + str(schema))
+    query = "SELECT Name FROM sqlite_master where sql like"
+    query = query + "("
+    query = query + "'%"
+    counter5 = 0
+
+    for parameter in schema:
+        counter5 = counter5 + 1
+        query = query + parameter
+        if counter5 is not len(schema):
+            query = query + "%') AND sql like('%"
+        else:
+            query = query + "%')"
+
+    print(query)
+
+    c.execute(query)
+
+
+    table = c.fetchone()
+    tables = []
+    match = None
+    if table is None:
+        print("No such schema available.")
+
+    while table is not None:
+        tables.append(table[0])
+        table = c.fetchone()
+
+    print("Tables added: " + str(tables))
+
+    for table in tables:
+        print("#####################################")
+        print(table)
+        table_name = table
+
+        query = "pragma table_info('" + table + "');"
+        print(query)
+        c.execute(query)
+
+        result = c.fetchall()
+        print(result)
+
+        if len(result) == len(schema):
+            print("Table " + table + " matches the schema of " + str(schema) + ".")
+            match = table
+
+        else:
+            print("Table " + table + " doesn't match the schema of " + str(schema) + ".")
+    print("#####################################")
+
+    if match is None:
+        print("No table matching the schema was found. UNDEFINED exception.")
+    else:
+        #Check if any key or non-nilable parameter of m has nil binding in tself.
+
+
+
+
+
     print("inserted")
     return False
 
@@ -202,7 +269,7 @@ def send(message, c):
             if known[parameters] and parameters in message_type.nil_param:
                 print("Nil-adornment violation exception")
 
-        if (insert(message)):
+        if (insert(message, c)):
             send(message)
         else:
             print("Insertion failed")
