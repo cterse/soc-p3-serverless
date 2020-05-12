@@ -1,60 +1,62 @@
-#https://code.tutsplus.com/tutorials/how-to-write-package-and-distribute-a-library-in-python--cms-28693
 import requests
 import adapter
 from flask import Flask, json
 import sqlite3
 conn = sqlite3.connect('/home/daria/Documents/test/test')
-
 app = Flask(__name__)
-role = "Merchant"
 from_ = "Merchant"
-
 c = conn.cursor()
-adapter.enable_adapter(c)
 
-orderID = 6
-address = "Brunswiasdck"
-parameters = {"orderID" : orderID, "address": address}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-adapter.insert(message, c)
-#adapter.send(message, c)
-orderID = 7
-address = "Brunswiasdck"
-parameters = {"orderID" : orderID, "address": address}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-adapter.insert(message, c)
-adapter.insert(message, c)
-orderID = ''
-address = "Brunswiasdck"
-parameters = {"orderID" : orderID, "address": address}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-#adapter.insert(message, c)
+handlers = {}
+#check taht a mesage is in the protocol_
 
-orderID = '8'
-address = ''
-parameters = {"orderID" : orderID, "address": address}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-#adapter.insert(message, c)
+'''
+def handle_available(message_name):
+	def store_handler(handler): #handleRequestLabel is here <---
+		handlers[message_name]=handler
+	return store_handler
 
-orderID = ''
-address = ''
-parameters = {"orderID" : orderID, "address": address}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-#adapter.insert(message, c)
 
-orderID = '10'
-address = 'qwe'
-packed = 'sdf'
-parameters = {"orderID" : orderID, "address": address, "packed": packed}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-#adapter.insert(message, c)
+@handle_available("RequestLabel")
+def handleRequestLabel(message, enactment): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
+	label = message.orderID + message.address
+	new_message = {orderID: message.orderID, label: label}
+	sendLabeled(new_message)
 
-orderID = '6'
-address = 'sdsfhsdfshs'
+@handle_available("RequestWrapping")
+def handleRequestWrapping(message, enactment): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
+	label = message.orderID + message.address
+	new_message = {orderID: message.orderID, label: label}
+	sendWrapped(new_message)
 
-parameters = {"orderID" : orderID, "address": address}
-message = adapter.create_Message_(from_, "Labeler", parameters)
-adapter.insert(message, c)
+'''
+
+
+def enableAdapter(c):
+	adapter.enable_adapter(c, "Merchant")
+
+def sendRequestLabel(orderID, address, c):
+	parameters = {"orderID" : str(orderID), "address": str(address)}
+	message = adapter.create_Message_("Merchant", "Labeler", "RequestLabel", parameters)
+	adapter.send(message, c)
+
+def sendRequestWrapping(orderID, itemID, item, c):
+	parameters = {"orderID" : str(orderID), "itemID": str(itemID), "item": str(item)}
+	message = adapter.create_Message_("Merchant", "Wrapper", "RequestWrapping", parameters)
+	adapter.send(message, c)
+
+
+#Operationalize protocol. Configure_adapter() sounds better. and protocol path as a parameter.
+enableAdapter(c)
+sendRequestLabel("1", "Brunswick", c)
+sendRequestWrapping("1", "1","Laptop", c)
+
+#pass the message instance to set available
+#Available(message):
+#diff available method for each msg
+#methods are empty but programmer will fill them in. The logic would go in there. specialising methods in the classes
+#available functions are empty but programmer can specialise it. decorators, higher order functions - takes a func as a param. but decorators betterself.#its a func you pass a func defself.
+
 
 
 conn.commit()
@@ -63,5 +65,7 @@ conn.close()
 
 @app.route('/messaging/Packed', methods=['POST'])
 def receivePacked():
-	def do_smth_with_msg():
-		return "Message received"
+	print(request.json)
+
+	#@handlemsg. param - name of msg.  returns a func that takes a func as its paramself.
+	#nested func definitions.

@@ -6,11 +6,24 @@ import sqlite3
 
 protocol_path = "protocol.txt"
 schema_path = "schema.txt"
+configuration_path = "configuration.txt"
 
-def enable_adapter(c):
+#1) Adapter is thread-safe - use queues. when msg comes in put it in job queue for the Adapter
+# when want to send a msg - put it in a queue. no need to use locks.
+#2) Insert msg upon receiveRequestLabel
+#3) file paths should be passed to adapter from agent. enable_adapter(c, config_path etc etc)
+#4) take protocol from bspl paper - like seller/buyer.
+
+#5)
+
+
+def enable_adapter(c, from_agent):
     #PARSING PROTOCOL
     global protocol
+    global protocol_
+    global configuration
     protocol = open(protocol_path, "r")
+    configuration = open(configuration_path, "r")
 
     #Skipping unnecessary lines of the protocol
     next(protocol)
@@ -65,6 +78,7 @@ def enable_adapter(c):
         message = Message(from_, to_, message_name, outs, ins, nils, keys, list)
         protocol.append(message)
 
+    protocol_ = []
     #DEBUGGING: printing protocol struture
     for message in protocol:
         print("From: " + message.from_)
@@ -77,34 +91,51 @@ def enable_adapter(c):
         print("Listed parameters: " + str(message.list_param))
         print("***")
 
-        #CREATING A TABLE TO STORE MESSAGES THAT HAVE BEEN SEEN
-        query = "create table " + message.message + " ( "
-        counter = 0
-        for param in message.list_param:
-            counter = counter + 1
-            query = query + str(param) + " text "
-            if not counter == len(message.list_param):
-                query = query + ", "
+        if message.from_ == from_agent or message.to_ == from_agent:
+            print("OOOOOOOOOOOOOOOOOOOOOOOOOO" + "message.from is " + message.from_ + ", message.to is " + message.to_ + ", this agent is " + from_agent)
+            protocol_.append(message)
+            #CREATING A TABLE TO STORE MESSAGES THAT HAVE BEEN SEEN
+            query = "create table " + message.message + " ( "
+            counter = 0
+            for param in message.list_param:
+                counter = counter + 1
+                query = query + str(param) + " text "
+                if not counter == len(message.list_param):
+                    query = query + ", "
 
-        if message.key_param is not []:
-            query = query + ", primary key ("
-        counter2 = 0
+            if message.key_param is not []:
+                query = query + ", primary key ("
+            counter2 = 0
 
-        for param in message.key_param:
-            counter2 = counter2 + 1
-            query = query + param
-            if not counter2 == len(message.key_param):
-                query = query + ", "
+            for param in message.key_param:
+                counter2 = counter2 + 1
+                query = query + param
+                if not counter2 == len(message.key_param):
+                    query = query + ", "
 
-        if message.key_param is not []:
+            if message.key_param is not []:
+                query = query + ")"
             query = query + ")"
-        query = query + ")"
-        print(query)
+            print(query)
         #c.execute(query)
     c.execute("delete from RequestLabel;")
+    c.execute("delete from RequestWrapping;")
     #c.execute("insert into RequestLabel (orderID, address) values ('1', 'Brunswick'); ")
-    #c.execute("insert into RequestLabel (orderID, address) values ('2', 'Bruasdasfnswick'); ")
+    #c.execute("insert into RequestWrapping (orderID, itemID, item) values ('1', '', ''); ")
     #c.execute("insert into RequestLabel (orderID, address) values ('3', 'Brunasdswick'); ")
+
+
+    messages = configuration.readlines()
+    configuration = {}
+    #Parsing information from configuration file to store uri's of agents
+    for message in messages:
+        print(message)
+        words = message.split()
+        role = words[0]
+        uri = words[1]
+        configuration[role]=uri
+
+    print(str(configuration))
 
 
 def find_between( s, first, last ):
@@ -133,14 +164,13 @@ def insert(message, c):
     match = None
 
     print("Schema is: " + str(schema))
-    for message_type in protocol:
+    for message_type in protocol_:
         print(message_type.list_param)
         if set(schema) == set(message_type.list_param):
             match = message_type.message
             matched_message = message_type
 
     if match is None:
-        print("No table matching the schema was found. UNDEFINED-MESSAGE exception.")
         raise Exception("No table matching the schema was found. UNDEFINED-MESSAGE exception.")
     else:
         print("Match found: " + match)
@@ -163,7 +193,6 @@ def insert(message, c):
 
 
     if schema_exception:
-        print("SCHEMA VIOLATION exception.")
         raise Exception("SCHEMA VIOLATION exception.")
     else:
         query = "SELECT EXISTS" + "(" + "SELECT 1 FROM " + match + " WHERE "
@@ -187,7 +216,7 @@ def insert(message, c):
             return False
         else:
             #Check for every table if despite key values being there, non-key values are DIFFERET from intersections.
-            for message_type in protocol:
+            for message_type in protocol_:
                 print(str(message_type.message))
                 intersection = []
                 keys = []
@@ -245,7 +274,6 @@ def insert(message, c):
                             belongs = False
 
                     if belongs == False:
-                        print("INCONSISTENT-MESSAGE EXCEPTION")
                         raise Exception("INCONSISTENT-MESSAGE EXCEPTION")
 
 
@@ -280,9 +308,8 @@ def insert(message, c):
             c.execute(insert_query)
             inserted = c.fetchone()
             print(inserted)
+            return True
 
-
-    return False
 
 
 def send(message, c):
@@ -292,8 +319,13 @@ def send(message, c):
     # known = False
     # 1) for orderID: for each table - if orderID is in it then U=[orderID,address]/\[orderID, address, blabla] = [orderID, address]
     known = {}
-
     intersection = OrderedDict()
+
+    print("TABLES ON THIS AGENT ARE ##########################" + str(protocol_))
+    for msg in protocol_:
+        print("COMPARISONSSSSSSSSSSSSSSSSSSSSSS" + msg.message + " AND " + message.message_name)
+        if msg.message == message.message_name:
+            schema = msg
 
     print("SENDING ALGORITHM STARTED")
     for parameters in message.parameters:
@@ -303,47 +335,73 @@ def send(message, c):
         known[parameters] = False
 
         #For every message type that mentions this parameter need to find intersection in schemas
-        for message_type in protocol:
+        for message_type in protocol_:
             if parameters in message_type.list_param:
                 #take this particular db table and check if this message instance is alrerady there
                 print(parameters + " parameter is in " + message_type.message)
                 #Find intersection between schemas
                 #keys = set(message_type.list_param).intersection(message.parameters)
 
-                s1 = set(message_type.list_param)
-                s2 = set(message.parameters.keys())
-                s3 = s1 & s2
 
-                intersection = dict([(k,message.parameters[k]) for k in s3])
-                #intersection = {k:message.parameters[k] for k in keys}
-                print(message_type.list_param)
-                print(str(message.parameters))
-                print(intersection)
+                #Finding intersection
+                intersection = []
+                msg_param = []
+                for params in message.parameters:
+                    msg_param.append(params)
+                for params in message_type.list_param:
+                    if params in msg_param:
+                        intersection.append(params)
+                intersection_dict = {}
+                for params in intersection:
+                    intersection_dict[params] = message.parameters[params]
 
-                query = "SELECT * FROM " + message_type.message + " WHERE "
+
+                #SELECT NOT THE WHOLE LINE BUT PROJECTION TO MESSAGE
+                query = "SELECT "
+                counter9 = 0
+                for key in intersection_dict:
+                    counter9 = counter9 + 1
+                    query = query + str(key)
+                    if counter9 is not len(intersection_dict):
+                        query = query + ", "
+
+
+                query = query + " FROM " + message_type.message + " WHERE "
                 counter3 = 0
-                for key in intersection:
+                for key in intersection_dict:
                     counter3 = counter3 + 1
-                    query = query + str(key) + "='" + str(intersection[key]) + "'"
-                    if len(intersection) is not counter3:
+                    query = query + str(key) + "='" + str(intersection_dict[key]) + "'"
+                    if len(intersection_dict) is not counter3:
                         query = query + " and "
 
                 query = query + ";"
                 print(query)
                 c.execute(query)
+
                 result = c.fetchone()
+
+                message_name = result
                 print(result)
 
                 comparison = "("
                 counter4 = 0
-                for key in intersection:
+                for key in intersection_dict:
                     counter4 = counter4 + 1
-                    comparison = comparison + "'" + str(intersection[key]) + "'"
-                    if counter4 is not len(intersection):
+                    comparison = comparison + "'" + str(intersection_dict[key]) + "'"
+                    if counter4 is not len(intersection_dict):
                         comparison = comparison + ", "
                 comparison = comparison + ")"
                 print("Comparison : " + comparison)
                 #print("Result : " + result)
+
+                #If result contains ONE COMMA then remove it
+                result = str(result)
+                count10 = result.count(',')
+
+
+                if count10 == 1:
+                    result = result.replace(',', '')
+
 
                 print(str(result))
 
@@ -352,17 +410,28 @@ def send(message, c):
                     known[parameters] = True
 
 
-            if not known[parameters] and parameters in message_type.in_param:
-                print("In-adornment violation exception")
-                raise Exception("In-adornment violation exception")
-            if known[parameters] and parameters in message_type.out_param:
-                print("Out-adornment violation exception")
-                raise Exception("Out-adornment violation exception")
-            if known[parameters] and parameters in message_type.nil_param:
-                print("Nil-adornment violation exception")
-                raise Exception("Nil-adornment violation exception")
+        if not known[parameters] and parameters in schema.in_param:
+            print("Known: " + str(known[parameters]) + "; parameters: " + parameters + "; in-param of protocol: " + str(message_type.in_param))
+            raise Exception("In-adornment violation exception")
+        if known[parameters] and parameters in schema.out_param:
+            raise Exception("Out-adornment violation exception")
+        if known[parameters] and parameters in schema.nil_param:
+            raise Exception("Nil-adornment violation exception")
 
-        insert(message,c)
+    if insert(message, c):
+        forward(message, c, message.message_name)
+    else:
+        raise Exception("Entry with such values already exists.")
+
+
+def forward(message, c, message_name):
+    print(message_name)
+    print(str(configuration))
+    uri = "http://" + configuration[message.to_] + "/messaging/" + message_name
+    print("URI is " + uri)
+    item = json.dumps(message.parameters)
+    requests.post(uri, json=item)
+
 
 
 
@@ -389,12 +458,13 @@ class Message:
 
 
 class Message_:
-    def __init__(self, from_, to_, parameters):
+    def __init__(self, from_, to_, message_name, parameters):
         self.from_ = from_
         self.to_ = to_
+        self.message_name = message_name
         self.parameters = parameters
 
 
-def create_Message_(from_, to_, parameters):
-    message = Message_(from_, to_, parameters)
+def create_Message_(from_, to_, message_name, parameters):
+    message = Message_(from_, to_, message_name, parameters)
     return message
