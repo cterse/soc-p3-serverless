@@ -24,19 +24,6 @@ def find_between( s, first, last ):
     except ValueError:
         return ""
 
-
-
-
-
-
-def receive(message):
-    check(message)
-    insert(message)
-
-
-def check(message):
-    print("Message passed checking")
-
 #Class to represent a BSPL message that allows storing information about it
 #Used to store a protocol structure as a list of BSPL messages
 class Message:
@@ -61,37 +48,38 @@ class Message_:
 class Adapter:
     def __init__(self, from_, protocol_path, configuration_path, db_path):
         self.from_ = from_
-        self.to_ = to_
-        self.message_name = message_name
-        self.parameters = parameters
+        self.message_name = []
+        self.parameters = []
         self.handlers = {}
         self.protocol = []
-        self.configuration = []
+        self.protocol_ = []
+        self.configuration = {}
         self.c = []
         self.conn = []
+        self.schema = {}
 
         #self variables :
         #global module_name
         #global db
         #global conn
-        db = db_path
+        self.db = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread = False)
         self.c = self.conn.cursor()
 
         #PARSING PROTOCOL
 
-        protocol = open(protocol_path, "r")
+        self.protocol = open(protocol_path, "r")
         configuration = open(configuration_path, "r")
 
         #Skipping unnecessary lines of the protocol
-        next(protocol)
-        next(protocol)
-        next(protocol)
+        next(self.protocol)
+        next(self.protocol)
+        next(self.protocol)
 
         #Reading messages
-        messages = protocol.readlines()
+        messages = self.protocol.readlines()
         messages = messages[:-1]
-        protocol = []
+        self.protocol = []
 
         #Parsing information about messages line by line
         for message in messages:
@@ -136,9 +124,8 @@ class Adapter:
             message = Message(from_, to_, message_name, outs, ins, nils, keys, list)
             self.protocol.append(message)
 
-        protocol_ = []
         #DEBUGGING: printing protocol struture
-        for message in protocol:
+        for message in self.protocol:
             print("From: " + message.from_)
             print("To: " + message.to_)
             print("Message: " + message.message)
@@ -149,9 +136,9 @@ class Adapter:
             print("Listed parameters: " + str(message.list_param))
             print("***")
 
-            if message.from_ == from_agent or message.to_ == from_agent:
-                print("OOOOOOOOOOOOOOOOOOOOOOOOOO" + "message.from is " + message.from_ + ", message.to is " + message.to_ + ", this agent is " + from_agent)
-                protocol_.append(message)
+            if message.from_ == self.from_ or message.to_ == self.from_:
+                print("OOOOOOOOOOOOOOOOOOOOOOOOOO" + "message.from is " + message.from_ + ", message.to is " + message.to_ + ", this agent is " + self.from_)
+                self.protocol_.append(message)
                 #CREATING A TABLE TO STORE MESSAGES THAT HAVE BEEN SEEN
                 query = "create table " + message.message + " ( "
                 counter = 0
@@ -174,8 +161,7 @@ class Adapter:
                 if message.key_param is not []:
                     query = query + ")"
                 query = query + ")"
-                print(query)
-            #c.execute(query)
+                print("QUERY FOR CREATING A DATABASE TABLE: " + query)
         try:
             self.c.execute("delete from RequestLabel;")
             self.c.execute("delete from RequestWrapping;")
@@ -184,6 +170,11 @@ class Adapter:
         #c.execute("insert into RequestLabel (orderID, address) values ('3', 'Brunasdswick'); ")
         except:
             print("Tables are empty")
+
+        try:
+            self.c.execute(query)
+        except:
+            print("Table already exists")
 
 
         messages = configuration.readlines()
@@ -199,7 +190,7 @@ class Adapter:
         print(str(self.configuration))
 
         self.conn.commit()
-        #conn.close()
+        #self.conn.close()
 
 
 
@@ -207,7 +198,7 @@ class Adapter:
     	pass
 
     def handle_message(self, message):
-    	handler = self.handlers.get(message.message_name, nop)
+    	handler = self.handlers.get(message.message_name, self.nop)
     	handler(message)
 
     def register_handler(self, message_name):
@@ -217,13 +208,21 @@ class Adapter:
 
 
     def forward(self, message, message_name):
-        self.c = conn.cursor()
+        self.c = self.conn.cursor()
         print(message_name)
-        print(str(configuration))
-        uri = "http://" + configuration[message.to_] + "/messaging/" + message_name
+        print(str(self.configuration))
+        uri = "http://" + self.configuration[message.to_] + "/messaging/" + message_name
         print("URI is " + uri)
         item = json.dumps(message.parameters)
         requests.post(uri, json=item)
+
+    def receive(self, message_name, record):
+
+        print("RECEIVED RECORD IS " + str(record)) #<-- dictionary
+        message = self.create_Message_('', self.from_, message_name, record)
+        print("Message to be inserted is: " + str(message))
+        self.insert(message)
+        return True
 
 
     def insert(self, message):
@@ -232,21 +231,21 @@ class Adapter:
         #OR has an undefined key parameter,
         #OR is a duplicate,
         #OR its contents are inconsistent with a previously stored message of the same or a different name.
-        self.conn = sqlite3.connect(db)
+        self.conn = sqlite3.connect(self.db)
         print("INSERTION STARTED")
         #Check against the protocol schema ot the db one.
         #Write an email before implemeting something to get opinion.
-        self.c = conn.cursor()
-        schema = []
+        self.c = self.conn.cursor()
+        self.schema = []
         for key in message.parameters:
-            schema.append(key)
+            self.schema.append(key)
 
         match = None
 
-        print("Schema is: " + str(schema))
-        for message_type in protocol_:
+        print("Schema is: " + str(self.schema))
+        for message_type in self.protocol_:
             print(message_type.list_param)
-            if set(schema) == set(message_type.list_param):
+            if set(self.schema) == set(message_type.list_param):
                 match = message_type.message
                 matched_message = message_type
 
@@ -280,7 +279,7 @@ class Adapter:
             for params in message.parameters:
                 counter6 = counter6 + 1
                 query = query + params + "=" + "\"" + str(message.parameters[params]) + "\""
-                if counter6 is not len(schema):
+                if counter6 is not len(self.schema):
                     query = query + " AND "
                 else:
                     query = query + ");"
@@ -296,7 +295,7 @@ class Adapter:
                 return False
             else:
                 #Check for every table if despite key values being there, non-key values are DIFFERET from intersections.
-                for message_type in protocol_:
+                for message_type in self.protocol_:
                     print(str(message_type.message))
                     intersection = []
                     keys = []
@@ -361,11 +360,11 @@ class Adapter:
                 insert_query = "INSERT INTO " + match + " ("
 
                 counter7 = 0
-                for columns in schema:
+                for columns in self.schema:
                     counter7 = counter7 + 1
                     insert_query = insert_query + columns
 
-                    if counter7 is not len(schema):
+                    if counter7 is not len(self.schema):
                         insert_query = insert_query + ", "
                     else:
                         insert_query = insert_query + ")"
@@ -373,11 +372,11 @@ class Adapter:
                 insert_query = insert_query + " VALUES ("
 
                 counter8 = 0
-                for columns in schema:
+                for columns in self.schema:
                     counter8 = counter8 + 1
                     insert_query = insert_query + "'" + str(message.parameters[columns]) + "'"
 
-                    if counter8 is not len(schema):
+                    if counter8 is not len(self.schema):
                         insert_query = insert_query + ", "
                     else:
                         insert_query = insert_query + ")"
@@ -385,8 +384,9 @@ class Adapter:
 
                 print("QUERY: " + insert_query)
 
-                c.execute(insert_query)
-                inserted = c.fetchone()
+                self.c.execute(insert_query)
+                inserted = self.c.fetchone()
+                self.conn.commit()
                 print(inserted)
 
                 print("Notifying agent that message is available: " + str(message))
@@ -404,21 +404,21 @@ class Adapter:
         # 1) for orderID: for each table - if orderID is in it then U=[orderID,address]/\[orderID, address, blabla] = [orderID, address]
         known = {}
         intersection = OrderedDict()
-        self.c = conn.cursor()
+        self.c = self.conn.cursor()
 
         for prot_lines in self.protocol:
             if prot_lines.message == message_name:
                 to_ = prot_lines.to_
 
 
-        message = this.create_Message_(this.from_, to_, "RequestLabel", parameters)
+        message = self.create_Message_(self.from_, to_, "RequestLabel", parameters)
 
 
-        print("TABLES ON THIS AGENT ARE ##########################" + str(protocol_))
-        for msg in protocol_:
+        print("TABLES ON THIS AGENT ARE ##########################" + str(self.protocol_))
+        for msg in self.protocol_:
             print("COMPARISONSSSSSSSSSSSSSSSSSSSSSS" + msg.message + " AND " + message.message_name)
             if msg.message == message.message_name:
-                schema = msg
+                self.schema = msg
 
 
         print("SENDING ALGORITHM STARTED")
@@ -429,7 +429,7 @@ class Adapter:
             known[parameters] = False
 
             #For every message type that mentions this parameter need to find intersection in schemas
-            for message_type in protocol_:
+            for message_type in self.protocol_:
                 if parameters in message_type.list_param:
                     #take this particular db table and check if this message instance is alrerady there
                     print(parameters + " parameter is in " + message_type.message)
@@ -504,12 +504,12 @@ class Adapter:
                         known[parameters] = True
 
 
-            if not known[parameters] and parameters in schema.in_param:
+            if not known[parameters] and parameters in self.schema.in_param:
                 print("Known: " + str(known[parameters]) + "; parameters: " + parameters + "; in-param of protocol: " + str(message_type.in_param))
                 raise Exception("In-adornment violation exception")
-            if known[parameters] and parameters in schema.out_param:
+            if known[parameters] and parameters in self.schema.out_param:
                 raise Exception("Out-adornment violation exception")
-            if known[parameters] and parameters in schema.nil_param:
+            if known[parameters] and parameters in self.schema.nil_param:
                 raise Exception("Nil-adornment violation exception")
 
         if self.insert(message):
@@ -517,6 +517,6 @@ class Adapter:
         else:
             raise Exception("Entry with such values already exists.")
 
-    def create_Message_(from_, to_, message_name, parameters):
+    def create_Message_(self, from_, to_, message_name, parameters):
         message = Message_(from_, to_, message_name, parameters)
         return message

@@ -5,52 +5,63 @@ import sqlite3
 conn = sqlite3.connect('/home/daria/Documents/test/test')
 app = Flask(__name__)
 from_ = "Merchant"
-c = conn.cursor()
-
 handlers = {}
-#check taht a mesage is in the protocol_
 
-'''
+
+def nop(message):
+	pass
+
+def handle_message(message):
+	handler = handlers.get(message.message, nop)
+	handler(message)
+
 def handle_available(message_name):
 	def store_handler(handler): #handleRequestLabel is here <---
 		handlers[message_name]=handler
 	return store_handler
 
 
+
 @handle_available("RequestLabel")
-def handleRequestLabel(message, enactment): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
-	label = message.orderID + message.address
-	new_message = {orderID: message.orderID, label: label}
-	sendLabeled(new_message)
+def handleRequestLabel(message): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
+	print("Message: " + str(message.parameters)) #< <--- dictionary of parameters
 
 @handle_available("RequestWrapping")
-def handleRequestWrapping(message, enactment): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
-	label = message.orderID + message.address
-	new_message = {orderID: message.orderID, label: label}
-	sendWrapped(new_message)
+def handleRequestWrapping(message): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
+	print("Message: " + str(message["parameters"]))
 
-'''
+@handle_available("Packed")
+def handlePacked(message): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
+	print("Message: " + str(message["parameters"]))
 
 
-def enableAdapter(c):
-	adapter.enable_adapter(c, "Merchant")
 
-def sendRequestLabel(orderID, address, c):
+def enable_adapter():
+	global c
+	c = conn.cursor()
+	adapter.enable_adapter(c, "Merchant", "merchant_pos")
+
+def sendRequestLabel(orderID, address):
 	parameters = {"orderID" : str(orderID), "address": str(address)}
 	message = adapter.create_Message_("Merchant", "Labeler", "RequestLabel", parameters)
 	adapter.send(message, c)
 
-def sendRequestWrapping(orderID, itemID, item, c):
+def sendRequestWrapping(orderID, itemID, item):
 	parameters = {"orderID" : str(orderID), "itemID": str(itemID), "item": str(item)}
 	message = adapter.create_Message_("Merchant", "Wrapper", "RequestWrapping", parameters)
 	adapter.send(message, c)
 
 
 #Operationalize protocol. Configure_adapter() sounds better. and protocol path as a parameter.
-enableAdapter(c)
-sendRequestLabel("1", "Brunswick", c)
-sendRequestWrapping("1", "1","Laptop", c)
+enable_adapter()
+sendRequestLabel("1", "Brunswick")
 
+#adapter.handle_message({"from": "Merchant", "to": "Labeler", "message": "RequestLabel", "parameters": parameters})
+print(handlers)
+
+
+
+#sendRequestWrapping("1", "1","Laptop", c)
 #pass the message instance to set available
 #Available(message):
 #diff available method for each msg

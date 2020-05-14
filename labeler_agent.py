@@ -1,15 +1,27 @@
-import requests
-import adapter
-from flask import Flask, json, request
-import sqlite3
-conn = sqlite3.connect('/home/daria/Documents/test/test')
-
-app = Flask(__name__)
-role = "Labeler"
+#####CONFIGURATIONS#####
+db_path = '/home/daria/Documents/test/test2'
 from_ = "Labeler"
+protocol_path="protocol.txt"
+configuration_path="configuration.txt"
 
-#c = conn.cursor()
-#adapter.enable_adapter(c, "Labeler")
+########################
+import merchant_skeleton as messaging
+import pos
+from flask import Flask, json, request
+
+########################
+app = Flask(__name__)
+adapter= pos.Adapter(from_, protocol_path, configuration_path, db_path)
+
+
+
+@adapter.register_handler("RequestLabel")
+def handleRequestLabel(message): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
+	print("MESSAGE IS BEING HANDLED: " + str(message.parameters))
+
+
+###############################################################################################################################
+
 
 @app.route('/labeled', methods=['POST'])
 def add_item():
@@ -21,17 +33,17 @@ def add_item():
 
 
 
+
+
+#MAKE PART OF THE ADAPTER
 @app.route('/messaging/RequestLabel', methods=['POST'])
 def receiveRequestLabel():
-	#print(request.json)
-    #return True
-    #insert message here
-    print(request.json)
+	received = adapter.receive("RequestLabel", json.loads(request.json))
+	if received:
+		return '', 204
+	else:
+		return 'error'
 
-    msg = {
-        'orderID':  request.json['orderID'],
-        'address': request.json.get('address', "")
-    }
 
     #This is reception from network - http
     #verify msg is correct and insert it in the database
