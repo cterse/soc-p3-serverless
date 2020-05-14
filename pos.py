@@ -57,7 +57,6 @@ class Adapter:
         self.c = []
         self.conn = []
         self.schema = {}
-
         #self variables :
         #global module_name
         #global db
@@ -66,11 +65,11 @@ class Adapter:
         self.conn = sqlite3.connect(db_path, check_same_thread = False)
         self.c = self.conn.cursor()
 
-        #PARSING PROTOCOL
+        self.app = Flask(self.from_)
 
+        #PARSING PROTOCOL
         self.protocol = open(protocol_path, "r")
         configuration = open(configuration_path, "r")
-
         #Skipping unnecessary lines of the protocol
         next(self.protocol)
         next(self.protocol)
@@ -191,6 +190,20 @@ class Adapter:
 
         self.conn.commit()
         #self.conn.close()
+
+
+        for messages in self.protocol_:
+            if messages.to_ == self.from_:
+
+
+
+        @app.route('/messaging/RequestLabel', methods=['POST'])
+        def receiveRequestLabel():
+        	received = adapter.receive("RequestLabel", json.loads(request.json))
+        	if received:
+        		return '', 204
+        	else:
+        		return 'error'
 
 
 
@@ -492,10 +505,8 @@ class Adapter:
                     result = str(result)
                     count10 = result.count(',')
 
-
                     if count10 == 1:
                         result = result.replace(',', '')
-
 
                     print(str(result))
 

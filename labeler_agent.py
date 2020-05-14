@@ -22,20 +22,9 @@ def handleRequestLabel(message): #pass smth like a cursor, construct enactment o
 
 ###############################################################################################################################
 
-
-@app.route('/labeled', methods=['POST'])
-def add_item():
-    if not request.json or not 'oID' in request.json:
-        abort(400)
-    oID = request.json['oID']
-    print(oID)
-
-
-
-
-
-
-#MAKE PART OF THE ADAPTER
+#our concepts
+#generic reception method.
+#create a func register_reception. flask has to notify adapter - generic. adapter has to figure out what kind of message it is and notify handleRequestLabel
 @app.route('/messaging/RequestLabel', methods=['POST'])
 def receiveRequestLabel():
 	received = adapter.receive("RequestLabel", json.loads(request.json))
@@ -44,7 +33,7 @@ def receiveRequestLabel():
 	else:
 		return 'error'
 
-
+#1 specify protocol provide programming model - adapter component, handlers
     #This is reception from network - http
     #verify msg is correct and insert it in the database
     #once its there - let agent know that a new event has happened. "Available" - notify
