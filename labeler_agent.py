@@ -16,14 +16,15 @@ import uuid
 
 @adapter.register_handler("RequestLabel")
 def handleRequestLabel(message): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
-	print("RequestLabel received: " + str(message.parameters))
+	print("RequestLabel received!!!!!!! : " + str(message.parameters))
 	label = uuid.uuid4()
-	print("Label created: " + str(label))
+	#print("Label created: " + str(label))
 	parameters = {
 	"orderID": message.parameters["orderID"],
 	"address": message.parameters["address"],
-	"label": label
+	"label": str(label)
 	}
+	print("Labeled message ot be sent: " + str(parameters))
 	adapter.send("Labeled", parameters)
 
 

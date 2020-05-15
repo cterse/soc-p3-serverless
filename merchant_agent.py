@@ -21,16 +21,16 @@ adapter = pos.Adapter(from_, protocol_path, configuration_path, db_path)
 
 
 #Sending a RequestLabel message to Labeler
-for x in range(50):
-    parameters = {
-    "orderID": x
-    }
-    if random.random() < 0.5:
-        parameters["address"] = "Preston"
-    else:
-        parameters["address"] = "Manchester"
 
-    adapter.send("RequestLabel", parameters)
+parameters = {
+"orderID": 1,
+"address": "Brunswick"
+}
+adapter.send("RequestLabel", parameters)
+
+
+
+
 
 
 
@@ -38,30 +38,6 @@ for x in range(50):
 def handleRequestLabel(message): #pass smth like a cursor, construct enactment object if asked. doesnt have to query until asked
 	print("RequestLabel sent: " + str(message.parameters)) #< <--- dictionary of parameters
 
-    if random.random() < 0.5:
-        parameters = {
-        "orderID": message.parameters["orderID"],
-        "itemID": 1,
-        }
-        if random.random() < 0.5:
-            parameters["item"] = "Laptop"
-        else:s
-            parameters["item"] = "Smartphone"
-
-        adapter.send("RequestWrapping", parameters)
-
-    else:
-        for y in range(3):
-            parameters = {
-            "orderID": x,
-            "itemID": y,
-            }
-            if random.random() < 0.5:
-                parameters["item"] = "Laptop"
-            else:
-                parameters["item"] = "Smartphone"
-
-            adapter.send("RequestWrapping", parameters)
 
 
 @adapter.register_handler("RequestWrapping")
