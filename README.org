@@ -1,4 +1,4 @@
-* Instructions for using the adapter:
+** Instructions for using the adapter
 
 1) Creating virtual environment
    #+begin_src: sh
@@ -22,14 +22,14 @@
 
 5) Download and install sqlite3
     #+begin_src sh
-	sudo apt-get install sqlite3
+    sudo apt-get install sqlite3
     #+end_src
 
 6) Download and install browser for managing databases in sqlite3.
     #+begin_src sh
-	sudo add-apt-repository -y ppa:linuxgndu/sqlitebrowser
-	sudo apt-get update
-	sudo apt-get install sqlitebrowser
+    sudo add-apt-repository -y ppa:linuxgndu/sqlitebrowser
+    sudo apt-get update
+    sudo apt-get install sqlitebrowser
     #+end_src
 
 7) Search your machine for the installed DB Browser and launch it. You can search it as “DB Browser for SQLite”. Then click “New Database” and specify where you are going to store this Database file. Remember the path to you Database file.
