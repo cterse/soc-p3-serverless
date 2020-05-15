@@ -1,7 +1,8 @@
 import requests
 import adapter
 import importlib
-from flask import Flask, json
+import logging
+from flask import Flask, json, request
 from collections import OrderedDict
 import sqlite3
 
@@ -14,6 +15,9 @@ import sqlite3
 
 #5)
 
+FORMAT = '%(asctime)-15s %(message)s'
+logging.basicConfig(format=FORMAT,level="DEBUG")
+logger = logging.getLogger('pos')
 
 
 def find_between( s, first, last ):
@@ -65,7 +69,7 @@ class Adapter:
         self.conn = sqlite3.connect(db_path, check_same_thread = False)
         self.c = self.conn.cursor()
 
-        self.app = Flask(self.from_)
+        self.app = Flask(__name__)
 
         #PARSING PROTOCOL
         self.protocol = open(protocol_path, "r")
@@ -125,18 +129,18 @@ class Adapter:
 
         #DEBUGGING: printing protocol struture
         for message in self.protocol:
-            print("From: " + message.from_)
-            print("To: " + message.to_)
-            print("Message: " + message.message)
-            print("Out parameters: " + str(message.out_param))
-            print("In parameters: " + str(message.in_param))
-            print("Nil parameters: " + str(message.nil_param))
-            print("Key parameters: " + str(message.key_param))
-            print("Listed parameters: " + str(message.list_param))
-            print("***")
+            #print("From: " + message.from_)
+            #print("To: " + message.to_)
+            #print("Message: " + message.message)
+            #print("Out parameters: " + str(message.out_param))
+            #print("In parameters: " + str(message.in_param))
+            #print("Nil parameters: " + str(message.nil_param))
+            #print("Key parameters: " + str(message.key_param))
+            #print("Listed parameters: " + str(message.list_param))
+            #print("***")
 
             if message.from_ == self.from_ or message.to_ == self.from_:
-                print("OOOOOOOOOOOOOOOOOOOOOOOOOO" + "message.from is " + message.from_ + ", message.to is " + message.to_ + ", this agent is " + self.from_)
+                #print("OOOOOOOOOOOOOOOOOOOOOOOOOO" + "message.from is " + message.from_ + ", message.to is " + message.to_ + ", this agent is " + self.from_)
                 self.protocol_.append(message)
                 #CREATING A TABLE TO STORE MESSAGES THAT HAVE BEEN SEEN
                 query = "create table " + message.message + " ( "
@@ -160,7 +164,7 @@ class Adapter:
                 if message.key_param is not []:
                     query = query + ")"
                 query = query + ")"
-                print("QUERY FOR CREATING A DATABASE TABLE: " + query)
+                #print("QUERY FOR CREATING A DATABASE TABLE: " + query)
         try:
             self.c.execute("delete from RequestLabel;")
             self.c.execute("delete from RequestWrapping;")
@@ -191,20 +195,24 @@ class Adapter:
         self.conn.commit()
         #self.conn.close()
 
+        @self.app.route('/messaging/<message_name>', methods=['POST'])
+        def receive(message_name):
+            sender = request.args.get("sender")
+            record = json.loads(request.json) #<--dictionary
+            print("RECEIVED RECORD IS " + str(record)) #<-- dictionary
 
-        for messages in self.protocol_:
-            if messages.to_ == self.from_:
+            message = self.create_Message_(sender, self.from_, message_name, record)
+            print("Message to be inserted is: " + str(message))
+            received = self.insert(message)
+
+            if received:
+                return '', 204
+            else:
+                return 'error inserting received message: ' + message_name, 500
 
 
-
-        @app.route('/messaging/RequestLabel', methods=['POST'])
-        def receiveRequestLabel():
-        	received = adapter.receive("RequestLabel", json.loads(request.json))
-        	if received:
-        		return '', 204
-        	else:
-        		return 'error'
-
+    def run(self, **kwargs):
+        self.app.run(**kwargs)
 
 
     def nop(self, message):
@@ -224,18 +232,10 @@ class Adapter:
         self.c = self.conn.cursor()
         print(message_name)
         print(str(self.configuration))
-        uri = "http://" + self.configuration[message.to_] + "/messaging/" + message_name
+        uri = "http://" + self.configuration[message.to_] + "/messaging/" + message_name + "?from=" + self.from_
         print("URI is " + uri)
         item = json.dumps(message.parameters)
         requests.post(uri, json=item)
-
-    def receive(self, message_name, record):
-
-        print("RECEIVED RECORD IS " + str(record)) #<-- dictionary
-        message = self.create_Message_('', self.from_, message_name, record)
-        print("Message to be inserted is: " + str(message))
-        self.insert(message)
-        return True
 
 
     def insert(self, message):
@@ -263,7 +263,9 @@ class Adapter:
                 matched_message = message_type
 
         if match is None:
-            raise Exception("No table matching the schema was found. UNDEFINED-MESSAGE exception.")
+            result = {"message" : "Undefined message.", "status": str(message.parameters)}
+            logger.info(result["message"])
+            return result
         else:
             print("Match found: " + match)
 
@@ -285,7 +287,9 @@ class Adapter:
 
 
         if schema_exception:
-            raise Exception("SCHEMA VIOLATION exception.")
+            result = {"message" : "Schema violation.", "status": str(matched_message)}
+            logger.info(result["message"])
+            return result
         else:
             query = "SELECT EXISTS" + "(" + "SELECT 1 FROM " + match + " WHERE "
             counter6=0
@@ -340,7 +344,7 @@ class Adapter:
                     belongs = True
                     print(result)
                     if result[0]==1:
-                        print("ENTRY FIELD WITH SUCH KEYS EXISTS")
+                        print("Entry with such keys already exists.")
                         for param in intersection:
                             query = "SELECT " + str(param) + " FROM " + str(message_type.message) + " WHERE "
 
@@ -366,7 +370,9 @@ class Adapter:
                                 belongs = False
 
                         if belongs == False:
-                            raise Exception("INCONSISTENT-MESSAGE EXCEPTION")
+                            result = {"message" : "Inconsistent message.", "status": str(message_type)}
+                            logger.info(result["message"])
+                            return result
 
 
                 #Inserting a message into local store
@@ -419,9 +425,16 @@ class Adapter:
         intersection = OrderedDict()
         self.c = self.conn.cursor()
 
+        to_ = None
+
         for prot_lines in self.protocol:
             if prot_lines.message == message_name:
                 to_ = prot_lines.to_
+
+        if not to_:
+            result = {"message" : "Unknown message name.", "status": message_name}
+            logger.info(result["message"])
+            return result
 
 
         message = self.create_Message_(self.from_, to_, "RequestLabel", parameters)
@@ -517,16 +530,24 @@ class Adapter:
 
             if not known[parameters] and parameters in self.schema.in_param:
                 print("Known: " + str(known[parameters]) + "; parameters: " + parameters + "; in-param of protocol: " + str(message_type.in_param))
-                raise Exception("In-adornment violation exception")
+                result = {"message" : "In-adornment violation exception.", "status": str(parameters)}
+                logger.info(result["message"])
+                return result
             if known[parameters] and parameters in self.schema.out_param:
-                raise Exception("Out-adornment violation exception")
+                result = {"message" : "Out-adornment violation exception.", "status": str(parameters)}
+                logger.info(result["message"])
+                return result
             if known[parameters] and parameters in self.schema.nil_param:
-                raise Exception("Nil-adornment violation exception")
+                result = {"message" : "Nil-adornment violation exception.", "status": str(parameters)}
+                logger.info(result["message"])
+                return result
 
         if self.insert(message):
             self.forward(message, message.message_name)
         else:
-            raise Exception("Entry with such values already exists.")
+            result = {"message" : "Duplicate message.", "status": str(message.parameters)}
+            logger.info(result["message"])
+            return result
 
     def create_Message_(self, from_, to_, message_name, parameters):
         message = Message_(from_, to_, message_name, parameters)
