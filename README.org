@@ -13,9 +13,9 @@
    . venv/bin/activate
    #+end_src
 
-3) Installing Flask
+3) Install module and dependencies
    #+begin_src sh
-   pip install Flask
+   pip install -e .
    #+end_src
 
 4) Put files into myproject folder. Files include configuration.txt, protocol.txt, adapter.py and any agents that are to be tested.
