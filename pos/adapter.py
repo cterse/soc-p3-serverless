@@ -1,4 +1,5 @@
 import requests
+import importlib
 import logging
 from flask import Flask, json, request
 from collections import OrderedDict
@@ -66,11 +67,10 @@ class Adapter:
         #global module_name
         #global db
         #global conn
+        self.app = Flask(__name__)
         self.db = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.c = self.conn.cursor()
-
-        self.app = Flask(__name__)
 
         # PARSING PROTOCOL
         self.protocol = open(protocol_path, "r")
@@ -131,15 +131,15 @@ class Adapter:
 
         # DEBUGGING: printing protocol struture
         for message in self.protocol:
-            #print("From: " + message.from_)
-            #print("To: " + message.to_)
-            #print("Message: " + message.message)
-            #print("Out parameters: " + str(message.out_param))
-            #print("In parameters: " + str(message.in_param))
-            #print("Nil parameters: " + str(message.nil_param))
-            #print("Key parameters: " + str(message.key_param))
-            #print("Listed parameters: " + str(message.list_param))
-            # print("***")
+            print("From: " + message.from_)
+            print("To: " + message.to_)
+            print("Message: " + message.message)
+            print("Out parameters: " + str(message.out_param))
+            print("In parameters: " + str(message.in_param))
+            print("Nil parameters: " + str(message.nil_param))
+            print("Key parameters: " + str(message.key_param))
+            print("Listed parameters: " + str(message.list_param))
+            print("***")
 
             if message.from_ == self.from_ or message.to_ == self.from_:
                 #print("OOOOOOOOOOOOOOOOOOOOOOOOOO" + "message.from is " + message.from_ + ", message.to is " + message.to_ + ", this agent is " + self.from_)
@@ -166,33 +166,46 @@ class Adapter:
                 if message.key_param is not []:
                     query = query + ")"
                 query = query + ")"
-                #print("QUERY FOR CREATING A DATABASE TABLE: " + query)
-        try:
-            self.c.execute("delete from RequestLabel;")
-            self.c.execute("delete from RequestWrapping;")
-        #c.execute("insert into RequestLabel (orderID, address) values ('1', 'Brunswick'); ")
-        #c.execute("insert into RequestWrapping (orderID, itemID, item) values ('1', '', ''); ")
-        #c.execute("insert into RequestLabel (orderID, address) values ('3', 'Brunasdswick'); ")
-        except:
-            print("Tables are empty")
+                print("QUERY FOR CREATING A DATABASE TABLE: " + query)
 
-        try:
-            self.c.execute(query)
-        except:
-            print("Table already exists")
+                try:
+                    self.c.execute("delete from RequestLabel;")
+                except:
+                    print("Table RequestLabel is empty")
+
+                try:
+                    self.c.execute("delete from RequestWrapping;")
+                except:
+                    print("Table RequestWrapping is empty")
+
+                try:
+                    self.c.execute("delete from Labeled;")
+                except:
+                    print("Table Labeled is empty")
+
+                try:
+                    self.c.execute(query)
+                except:
+                    print("Table already exists")
+
+                self.conn.commit()
 
         messages = configuration.readlines()
         configuration = {}
         # Parsing information from configuration file to store uri's of agents
         for message in messages:
-            print(message)
+            # print(message)
             words = message.split()
             role = words[0]
             uri = words[1]
             self.configuration[role] = uri
 
-        print(str(self.configuration))
+        # print(str(self.configuration))
 
+        self.c.execute("SELECT name FROM sqlite_master WHERE type = \"table\"")
+        tables = self.c.fetchall()
+
+        print(str(tables))
         self.conn.commit()
         # self.conn.close()
 
@@ -200,11 +213,11 @@ class Adapter:
         def receive(message_name):
             sender = request.args.get("sender")
             record = json.loads(request.json)  # <--dictionary
-            print("RECEIVED RECORD IS " + str(record))  # <-- dictionary
+            # print("RECEIVED RECORD IS " + str(record)) #<-- dictionary
 
             message = self.create_Message_(
                 sender, self.from_, message_name, record)
-            print("Message to be inserted is: " + str(message))
+            #print("Message to be inserted is: " + str(message))
             received = self.insert(message)
 
             if received:
@@ -213,12 +226,7 @@ class Adapter:
                 return 'error inserting received message: ' + message_name, 500
 
     def run(self, **kwargs):
-        uri = self.configuration.get(self.from_)
-        if uri:
-            host, port = uri.split(':')
-            self.app.run(host=host, port=port, **kwargs)
-        else:
-            self.app.run(**kwargs)
+        self.app.run(**kwargs)
 
     def nop(self, message):
         pass
@@ -234,8 +242,8 @@ class Adapter:
 
     def forward(self, message, message_name):
         self.c = self.conn.cursor()
-        print(message_name)
-        print(str(self.configuration))
+        # print(message_name)
+        # print(str(self.configuration))
         uri = "http://" + self.configuration[message.to_] + \
             "/messaging/" + message_name + "?from=" + self.from_
         print("URI is " + uri)
@@ -249,19 +257,24 @@ class Adapter:
         # OR is a duplicate,
         # OR its contents are inconsistent with a previously stored message of the same or a different name.
         self.conn = sqlite3.connect(self.db)
-        print("INSERTION STARTED")
+        #print("INSERTION STARTED")
         # Check against the protocol schema ot the db one.
         # Write an email before implemeting something to get opinion.
         self.c = self.conn.cursor()
+
+        query = "SELECT orderID, address from RequestLabel;"
+        self.c.execute(query)
+        print(str(self.c.fetchall()))
+
         self.schema = []
         for key in message.parameters:
             self.schema.append(key)
 
         match = None
 
-        print("Schema is: " + str(self.schema))
+        #print("Schema is: " + str(self.schema))
         for message_type in self.protocol_:
-            print(message_type.list_param)
+            # print(message_type.list_param)
             if set(self.schema) == set(message_type.list_param):
                 match = message_type.message
                 matched_message = message_type
@@ -271,12 +284,12 @@ class Adapter:
                       "status": str(message.parameters)}
             logger.info(result["message"])
             return result
-        else:
-            print("Match found: " + match)
+
+            #print("Match found: " + match)
 
             # Check if any key or non-nilable parameter of m has nil binding in tself.
         parameters = message.parameters
-        print("Parameters: " + str(parameters))
+        #print("Parameters: " + str(parameters))
 
         schema_exception = False
 
@@ -307,11 +320,11 @@ class Adapter:
                     query = query + " AND "
                 else:
                     query = query + ");"
-            print(query)
+            # print(query)
 
             self.c.execute(query)
             result = self.c.fetchone()
-            print(result[0])
+            # print(result[0])
 
             # DOesnt work?
             if result[0] == 1:
@@ -320,19 +333,18 @@ class Adapter:
             else:
                 # Check for every table if despite key values being there, non-key values are DIFFERET from intersections.
                 for message_type in self.protocol_:
-                    print(str(message_type.message))
+                    # print(str(message_type.message))
                     intersection = []
                     keys = []
                     for params in message.parameters:
                         if params in message_type.list_param:
                             intersection.append(params)
-                    print("Intersection with " + message_type.message +
-                          " is " + str(intersection))
+                    #print("Intersection with " + message_type.message + " is " + str(intersection))
                     # Finding subset of KEYS in the Intersection
                     for params in intersection:
                         if params in message_type.key_param:
                             keys.append(params)
-                    print("Keys in the intersection are: " + str(keys))
+                    #print("Keys in the intersection are: " + str(keys))
 
                     # Check if these keys exist in the relation AND the any of other params differ:
                     query = "SELECT EXISTS" + \
@@ -348,14 +360,14 @@ class Adapter:
                             query = query + " AND "
                         else:
                             query = query + ");"
-                    print(query)
+                    # print(query)
 
                     self.c.execute(query)
                     result = self.c.fetchone()
                     belongs = True
-                    print(result)
+                    # print(result)
                     if result[0] == 1:
-                        print("Entry with such keys already exists.")
+                        #print("Entry with such keys already exists.")
                         for param in intersection:
                             query = "SELECT " + \
                                 str(param) + " FROM " + \
@@ -417,14 +429,16 @@ class Adapter:
                         insert_query = insert_query + ")"
                 insert_query = insert_query + ";"
 
-                print("QUERY: " + insert_query)
+                #print("QUERY: " + insert_query)
 
                 self.c.execute(insert_query)
                 inserted = self.c.fetchone()
                 self.conn.commit()
-                print(inserted)
+                # print(inserted)
 
-                print("Notifying agent that message is available: " + str(message))
+                #print("Notifying agent that message is available: " + str(message))
+
+                # this message stays request label for some reason
                 self.handle_message(message)
                 return True
 
@@ -453,98 +467,65 @@ class Adapter:
             return result
 
         message = self.create_Message_(
-            self.from_, to_, "RequestLabel", parameters)
+            self.from_, to_, message_name, parameters)
 
-        print("TABLES ON THIS AGENT ARE ##########################" +
-              str(self.protocol_))
+        # print("TABLES ON THIS AGENT ARE ##########################" + str(self.protocol_))
         for msg in self.protocol_:
-            print("COMPARISONSSSSSSSSSSSSSSSSSSSSSS" +
-                  msg.message + " AND " + message.message_name)
+            #print("COMPARISONSSSSSSSSSSSSSSSSSSSSSS" + msg.message + " AND " + message.message_name)
             if msg.message == message.message_name:
                 self.schema = msg
 
-        print("SENDING ALGORITHM STARTED")
+        #print("SENDING ALGORITHM STARTED")
         for parameters in message.parameters:
-            print("************")
-            print("Parameter " + parameters)
-            print("************")
+            # print("************")
+            #print("Parameter " + parameters)
+            # print("************")
             known[parameters] = False
 
             # For every message type that mentions this parameter need to find intersection in schemas
             for message_type in self.protocol_:
                 if parameters in message_type.list_param:
                     # take this particular db table and check if this message instance is alrerady there
-                    print(parameters + " parameter is in " + message_type.message)
+                    #print(parameters + " parameter is in " + message_type.message)
                     # Find intersection between schemas
                     #keys = set(message_type.list_param).intersection(message.parameters)
 
-                    # Finding intersection
-                    intersection = []
-                    msg_param = []
-                    for params in message.parameters:
-                        msg_param.append(params)
-                    for params in message_type.list_param:
-                        if params in msg_param:
-                            intersection.append(params)
-                    intersection_dict = {}
-                    for params in intersection:
-                        intersection_dict[params] = message.parameters[params]
+                    print("Checking " + str(message_type.message) +
+                          " for parameter " + parameters)
+
+                    #intersection = set(enumerate(message_type.list_param)) & set(enumerate(message.parameters.keys()))
+
+                    intersection = [
+                        p for p in message_type.list_param if p in message.parameters.keys()]
 
                     # SELECT NOT THE WHOLE LINE BUT PROJECTION TO MESSAGE
-                    query = "SELECT "
-                    counter9 = 0
-                    for key in intersection_dict:
-                        counter9 = counter9 + 1
-                        query = query + str(key)
-                        if counter9 is not len(intersection_dict):
-                            query = query + ", "
+                    query = "SELECT {columns} from {message_name} WHERE {condition};".format(
+                        columns=",".join(intersection),
+                        message_name=message_type.message,
+                        condition=" and ".join(
+                            ["{}='{}'".format(p, message.parameters[p]) for p in intersection])
+                    )
 
-                    query = query + " FROM " + message_type.message + " WHERE "
-                    counter3 = 0
-                    for key in intersection_dict:
-                        counter3 = counter3 + 1
-                        query = query + str(key) + "='" + \
-                            str(intersection_dict[key]) + "'"
-                        if len(intersection_dict) is not counter3:
-                            query = query + " and "
-
-                    query = query + ";"
-                    print(query)
+                    print("QUERY: " + query)
                     self.c.execute(query)
-
                     result = self.c.fetchone()
+                    print("result is " + str(result))
 
-                    message_name = result
-                    print(result)
+                    if result:
+                        prior = {p: result[i]
+                                 for i, p in enumerate(intersection)}
+                        print("prior is " + str(prior))
 
-                    comparison = "("
-                    counter4 = 0
-                    for key in intersection_dict:
-                        counter4 = counter4 + 1
-                        comparison = comparison + "'" + \
-                            str(intersection_dict[key]) + "'"
-                        if counter4 is not len(intersection_dict):
-                            comparison = comparison + ", "
-                    comparison = comparison + ")"
-                    print("Comparison : " + comparison)
-                    #print("Result : " + result)
+                        if all(prior[p] == str(message.parameters[p]) for p in intersection):
+                            #print("The values are known!")
+                            print("SETTING KNOWN TO TRUE.")
+                            known[parameters] = True
 
-                    # If result contains ONE COMMA then remove it
-                    result = str(result)
-                    count10 = result.count(',')
-
-                    if count10 == 1:
-                        result = result.replace(',', '')
-
-                    print(str(result))
-
-                    if str(result) == comparison:
-                        print("The values are known!")
-                        known[parameters] = True
-
+            print("Known: " + str(known[parameters]
+                                  ) + " for parameter " + parameters)
             if not known[parameters] and parameters in self.schema.in_param:
                 print("Known: " + str(known[parameters]) + "; parameters: " +
-                      parameters + "; in-param of protocol: " + str(message_type.in_param))
+                      parameters + "; in-param of protocol: " + str(self.schema.in_param))
                 result = {"message": "In-adornment violation exception.",
                           "status": str(parameters)}
                 logger.info(result["message"])
