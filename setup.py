@@ -6,5 +6,5 @@ setup(name='pos',
       version='0.0.0',
       description='Protocol adapter for web services',
       packages=['pos'],
-      requires=['Flask'],
+      install_requires=['Flask', 'requests'],
       )
