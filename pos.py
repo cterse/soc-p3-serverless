@@ -167,6 +167,8 @@ class Adapter:
                 query = query + ")"
                 print("QUERY FOR CREATING A DATABASE TABLE: " + query)
 
+
+
                 try:
                     self.c.execute("delete from RequestLabel;")
                 except:
@@ -186,6 +188,10 @@ class Adapter:
                     self.c.execute(query)
                 except:
                     print("Table already exists")
+
+
+
+
                 self.conn.commit()
 
         messages = configuration.readlines()
