@@ -4,6 +4,7 @@ import sqlite3
 import random
 import os
 import pos
+from threading import Thread
 
 ##### CONFIGURATIONS #####
 name = "Merchant"
@@ -24,8 +25,8 @@ last_id = -1
 s = sched.scheduler(time.time, time.sleep)
 
 
-def fetch_orders(sc):
-    # print("Doing stuff...")
+def fetch_orders():
+    print("Doing stuff...")
     # do your stuff
     global last_id
     query = "SELECT * FROM orders WHERE orderID>?"
@@ -50,18 +51,12 @@ def fetch_orders(sc):
 
         last_id = orderID
 
-    s.enter(1, 1, fetch_orders, (sc,))
+    t = threading.Timer(0.5,fetch_orders).start()
 
 
-s.enter(1, 1, fetch_orders, (s,))
-s.run()
+fetch_orders()
 
 
-parameters = {
-    "orderID": 1,
-    "address": "Brunswick"
-}
-# adapter.send("RequestLabel", parameters)
 
 
 @adapter.register_handler("RequestLabel")
