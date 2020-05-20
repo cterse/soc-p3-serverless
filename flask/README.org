@@ -1,55 +1,40 @@
 ** Instructions for using the adapter
 
-1) Creating virtual environment
+1) Create a virtual environment (optional)
    #+begin_src: sh
    sudo apt-get install python-virtualenv
    mkdir myproject
    cd myproject
-   python3 -m venv venv
+   python3 -m venv venv      # create venv
+   . venv/bin/activate       # activate venv
    #+end_src
 
-2) Activating virtual environment
-   #+begin_src: sh
-   . venv/bin/activate
-   #+end_src
-
-3) Install module and dependencies
+2) Install module and dependencies
    #+begin_src sh
-   pip install -e .
+   pip install -e $POS_PATH
    #+end_src
 
-4) Put files into myproject folder. Files include configuration.txt, protocol.txt, adapter.py and any agents that are to be tested.
+3) Put files into myproject folder. Files include configuration.txt, protocol.txt, adapter.py and any agents that are to be tested.
 
-5) Download and install sqlite3
+4) Download and install sqlite3
     #+begin_src sh
     sudo apt-get install sqlite3
     #+end_src
 
-6) Download and install browser for managing databases in sqlite3.
+5) Download and install browser for managing databases in sqlite3.
     #+begin_src sh
     sudo add-apt-repository -y ppa:linuxgndu/sqlitebrowser
     sudo apt-get update
     sudo apt-get install sqlitebrowser
     #+end_src
 
-7) Search your machine for the installed DB Browser and launch it. You can search it as “DB Browser for SQLite”. Then click “New Database” and specify where you are going to store this Database file. Remember the path to you Database file.
+6) Search your machine for the installed DB Browser and launch it. You can search it as “DB Browser for SQLite”. Then click “New Database” and specify where you are going to store this Database file. Remember the path to you Database file.
 
-8) Update the agent’s implementation to include:
-   #+begin_src python
-   import sqlite3
-   conn = sqlite3.connect('/home/daria/Documents/test/test') #←---- replace this path to you Database file with the one you’ve remembered in step 6.
+7) Go into your agent’s implementation and update the path to files “configuration.txt” and “protocol.txt” if they are NOT in the same folder as python files.
+
+8) Run the agent
+   #+begin_src sh
+   python merchant-pos.py
    #+end_src
 
-9) Go into your agent’s implementation and update the path to files “configuration.txt” and “protocol.txt” if they are NOT in the same folder as python files.
-
-10) In order to run the agent you have to tell Flask which python file to run, therefore execute the following command in your shell, replacing the agent’s python file:
-    #+begin_src sh
-    export FLASK_APP=merchant-pos.py
-    #+end_src
-
-11) To run the agent using Flask execute the following command in shell:
-    #+begin_src sh
-    flask run
-    #+end_src
-
-comment: By default it will use host 127.0.0.1:5000, however, if you run multiple flask agents at the same time, they must have different addresses, so do that by running “flask run --host=127.0.0.2:5000” instead, specifying any address you want your agent to have – this should also match agent’s address specified configuration.txt file.
+The agent will automatically run with the host and port specified for its role in configuration.txt
