@@ -1,0 +1,33 @@
+* Serverless Protocols
+
+  This directory contains the source for several "stacks" for deployment with the Serverless Framework.
+
+** Stacks
+   Each subdirectory is a separate stack, which means it is deployed separately to AWS.
+
+   - layers :: a stack for separating out dependencies that don't need to be updated everytime the other stacks are updated
+   - logistics :: a stack for the logistics scenario
+
+** Setup
+   1. Install serverless
+      #+begin_src sh
+      npm install -g serverless
+      #+end_src
+   2. Configure serverless with your AWS credentials
+   3. Set up other resources
+      E.g. RDS, etc.
+   4. Deploy
+      A. Deploy the deps layer first
+        #+begin_src
+        cd serverless/layers/deps
+        sls deploy
+        #+end_src
+      B. Deploy the logistics stack
+        #+begin_src
+        cd serverless/logistics
+        sls deploy
+        #+end_src
+   5. Invoke
+      #+begin_src
+      sls invoke -f hello
+      #+end_src

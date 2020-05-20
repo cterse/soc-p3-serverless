@@ -1,0 +1,18 @@
+service: sls-pos
+
+provider:
+  name: aws
+  runtime: python3.6
+
+functions:
+  hello:
+    handler: handler.hello
+    module: hello
+    layers:
+      - ${cf:pos-deps-dev.DepsLayerExport}
+
+package:
+  individually: true
+
+plugins:
+  - serverless-python-requirements

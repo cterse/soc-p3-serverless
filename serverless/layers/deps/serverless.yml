@@ -1,0 +1,25 @@
+service: pos-deps
+frameworkVersion: ">=1.34.0 <2.0.0"
+
+provider:
+  name: aws
+  runtime: python3.6
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    layer:
+      name: deps
+      description: Python dependency layer
+      compatibleRuntimes:
+        - python3.6
+
+resources:
+  Outputs:
+    DepsLayerExport:
+      Value:
+        Ref: PythonRequirementsLambdaLayer
+      Export:
+        Name: PosDepsLayer
