@@ -6,3 +6,4 @@ logs/
 venv/
 node_modules/
 .serverless/
+.dynamodb/

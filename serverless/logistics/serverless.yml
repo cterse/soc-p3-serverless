@@ -9,6 +9,22 @@ package:
 
 plugins:
   - serverless-python-requirements
+  - serverless-dynamodb-local
+  - serverless-offline # serverless-offline needs to be last in the list
+
+custom:
+  dynamodb:
+  # If you only want to use DynamoDB Local in some stages, declare them here
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      heapInitial: 200m
+      heapMax: 1g
+      migrate: true
+      seed: true
+      convertEmptyValues: true
 
 functions:
   hello:
@@ -23,3 +39,19 @@ functions:
     module: order
     events:
       - httpApi: POST /orders
+
+resources: # CloudFormation template syntax from here on.
+  Resources:
+    usersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Orders
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
