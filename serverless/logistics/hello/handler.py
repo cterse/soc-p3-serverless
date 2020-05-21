@@ -1,8 +1,10 @@
 import json
-import pymysql
+import os
 
 
 def hello(event, context):
+    print(os.getenv('IS_OFFLINE'))
+
     name = json.loads(event["body"]).get("name", "World")
     body = {
         "message": "Hello, {}!".format(name),

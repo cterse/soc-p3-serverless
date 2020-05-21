@@ -3,9 +3,24 @@ service: sls-pos
 provider:
   name: aws
   runtime: python3.6
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        Fn::GetAtt:
+          - ordersTable
+          - Arn
 
 package:
   individually: true
+  exclude:
+    - '**'
 
 plugins:
   - serverless-python-requirements
@@ -28,17 +43,21 @@ custom:
 
 functions:
   hello:
-    handler: handler.hello
-    module: hello
+    handler: hello/handler.hello
     layers:
       - ${cf:pos-deps-dev.DepsLayerExport}
     events:
       - httpApi: POST /hello
+    package:
+      include:
+        - hello/**
   order:
-    handler: handler.writeToDynamo
-    module: order
+    handler: order/handler.writeToDynamo
     events:
       - httpApi: POST /orders
+    package:
+      include:
+        - order/**
 
 resources: # CloudFormation template syntax from here on.
   Resources:
