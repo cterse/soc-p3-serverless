@@ -4,6 +4,12 @@ provider:
   name: aws
   runtime: python3.6
 
+package:
+  individually: true
+
+plugins:
+  - serverless-python-requirements
+
 functions:
   hello:
     handler: handler.hello
@@ -17,10 +23,3 @@ functions:
     module: order
     events:
       - httpApi: POST /orders
-
-
-package:
-  individually: true
-
-plugins:
-  - serverless-python-requirements
