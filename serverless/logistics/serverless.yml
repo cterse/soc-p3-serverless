@@ -10,6 +10,9 @@ functions:
     module: hello
     layers:
       - ${cf:pos-deps-dev.DepsLayerExport}
+    events:
+      - httpApi: POST /hello
+
 
 package:
   individually: true

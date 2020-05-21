@@ -3,8 +3,9 @@ import pymysql
 
 
 def hello(event, context):
+    name = json.loads(event["body"]).get("name", "World")
     body = {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
+        "message": "Hello, {}!".format(name),
         "input": event
     }
 
