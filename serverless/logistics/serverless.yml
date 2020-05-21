@@ -42,7 +42,7 @@ functions:
 
 resources: # CloudFormation template syntax from here on.
   Resources:
-    usersTable:
+    ordersTable:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: Orders
