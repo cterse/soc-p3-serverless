@@ -12,6 +12,11 @@ functions:
       - ${cf:pos-deps-dev.DepsLayerExport}
     events:
       - httpApi: POST /hello
+  order:
+    handler: handler.writeToDynamo
+    module: order
+    events:
+      - httpApi: POST /orders
 
 
 package:
