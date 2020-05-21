@@ -4,7 +4,7 @@ import os
 import uuid
 
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('Orders_')
+table = dynamodb.Table('Orders')
 
 ####################
 def writeToDynamo(event, context):
