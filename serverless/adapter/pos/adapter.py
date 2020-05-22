@@ -1,7 +1,6 @@
 import logging
 import json
 import requests
-from collections import OrderedDict
 from .aws import dynamo_table, lambda_client
 from boto3.dynamodb.conditions import Key, Attr
 import datetime
@@ -62,7 +61,8 @@ class Adapter:
         self.role = role
         self.protocol = protocol
         self.configuration = configuration
-        self.handlers = {}
+        self.sent_handlers = {}
+        self.received_handlers = {}
 
         self.db = dynamo_table(history_table_name)
 
@@ -90,7 +90,7 @@ class Adapter:
         return response['Items']
 
     def get_schema(self, to, message):
-        return match_schema([schema for schema in self.protocol['messages']
+        return match_schema([schema for schema in self.protocol['messages'].values()
                              if schema['to'] == to],
                             message)
 
@@ -106,7 +106,7 @@ class Adapter:
 
         if check_integrity(message, enactment):
             self.store(message)
-            self.handle_message(schema, message, enactment)
+            self.handle_received_message(schema, message, enactment)
             return {
                 "statusCode": 200,
                 "body": json.dumps(message)
@@ -154,19 +154,25 @@ class Adapter:
             return False, "Message doesn't match any schema"
         enactment = self.get_enactment(schema, message)
 
-        if check_outs(schema, enactment) \
-           and check_integrity(message, enactment) \
-           and self.check_dependencies(schema, message):
-            self.store(message)
-            self.handle_message(schema, message, enactment)
-            requests.post(self.configuration[to],
-                          data=message
-                          )
-            return True, message
+        if not check_outs(schema, enactment):
+            return False, "Failed out check: {}".format(message)
 
-    def message(self, schema):
+        if not check_integrity(message, enactment):
+            return False, "Failed integrity check: {}".format(message)
+
+        if not self.check_dependencies(schema, message):
+            return False, "Failed dependency check: {}".format(message)
+
+        self.store(message)
+        self.handle_sent_message(schema, message, enactment)
+        requests.post(self.configuration[to],
+                      data=message
+                      )
+        return True, message
+
+    def sent(self, schema):
         """
-        Decorator for declaring message handlers.
+        Decorator for declaring sent message handlers.
 
         Example:
         @adapter.message(MessageSchema)
@@ -174,13 +180,38 @@ class Adapter:
             'do stuff'
         """
         def register_handler(handler):
-            self.handlers[json.dumps(schema, separators=(',', ':'))] = handler
+            self.sent_handlers[json.dumps(
+                schema, separators=(',', ':'))] = handler
         return register_handler
 
-    def handle_message(self, schema, message, enactment):
+    def received(self, schema):
+        """
+        Decorator for declaring received message handlers.
+
+        Example:
+        @adapter.message(MessageSchema)
+        def handle_message(message, enactment):
+            'do stuff'
+        """
+        def register_handler(handler):
+            self.received_handlers[json.dumps(
+                schema, separators=(',', ':'))] = handler
+        return register_handler
+
+    def handle_sent_message(self, schema, message, enactment):
         """
         Dispatch user-specified handler for schema, passing message and enactment.
         """
-        handler = self.handlers.get(json.dumps(schema, separators=(',', ':')))
+        handler = self.sent_handlers.get(
+            json.dumps(schema, separators=(',', ':')))
+        if handler:
+            handler(message, enactment)
+
+    def handle_received_message(self, schema, message, enactment):
+        """
+        Dispatch user-specified handler for schema, passing message and enactment.
+        """
+        handler = self.received_handlers.get(
+            json.dumps(schema, separators=(',', ':')))
         if handler:
             handler(message, enactment)

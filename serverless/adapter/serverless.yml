@@ -32,7 +32,7 @@ custom:
 
 layers:
   adapter:
-    path: src # required, path to layer contents on disk
+    path: pos # required, path to layer contents on disk
     name: PosAdapterLayer # optional, Deployed Lambda layer name
     description: Layer for sharing the PoS adapter module # optional, Description to publish to AWS
     licenseInfo: GPLv3 # optional, a string specifying license information
@@ -44,3 +44,8 @@ resources:
         Ref: PythonRequirementsLambdaLayer
       Export:
         Name: PosDepsLayer
+    AdapterLayerExport:
+      Value:
+        Ref: AdapterLambdaLayer
+      Export:
+        Name: PosAdapterLayer

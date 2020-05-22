@@ -2,7 +2,10 @@ service: sls-pos
 
 provider:
   name: aws
-  runtime: python3.6
+  runtime: python3.8
+  stage: ${opt:stage,'dev'}
+  environment:
+    IS_OFFLINE: ${self:custom.isOffline.${self:provider.stage}}
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -12,6 +15,7 @@ provider:
         - dynamodb:PutItem
         - dynamodb:UpdateItem
         - dynamodb:DeleteItem
+        - dynamodb:ListStreams
       Resource:
         Fn::GetAtt:
           - ordersTable
@@ -28,6 +32,12 @@ plugins:
   - serverless-offline # serverless-offline needs to be last in the list
 
 custom:
+  stages:
+    - dev
+    - local
+  isOffline:
+    dev: False
+    local: True
   dynamodb:
   # If you only want to use DynamoDB Local in some stages, declare them here
     stages:
@@ -42,15 +52,6 @@ custom:
       convertEmptyValues: true
 
 functions:
-  hello:
-    handler: hello/handler.hello
-    layers:
-      - ${cf:pos-deps-dev.DepsLayerExport}
-    events:
-      - httpApi: POST /hello
-    package:
-      include:
-        - hello/**
   order:
     handler: order/handler.writeToDynamo
     events:
@@ -58,6 +59,29 @@ functions:
     package:
       include:
         - order/**
+  po-trigger:
+    handler: merchant/merchant.handle_order
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt: [ordersTable, StreamArn]
+    package:
+      include:
+        - merchant/**
+    layers:
+      - ${cf:pos-adapter-dev.DepsLayerExport}
+      - ${cf:pos-adapter-dev.AdapterLayerExport}
+  merchant:
+    handler: merchant/merchant.adapter.handler
+    events:
+      - httpApi: POST /merchant/messages
+    package:
+      include:
+        - merchant/**
+    layers:
+      - ${cf:pos-adapter-dev.DepsLayerExport}
+      - ${cf:pos-adapter-dev.AdapterLayerExport}
 
 resources: # CloudFormation template syntax from here on.
   Resources:
@@ -71,6 +95,25 @@ resources: # CloudFormation template syntax from here on.
         KeySchema:
           - AttributeName: orderID
             KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+    merchantHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: MerchantHistory
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+          - AttributeName: _time
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+          - AttributeName: _time
+            KeyType: RANGE
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1

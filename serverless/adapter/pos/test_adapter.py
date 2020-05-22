@@ -38,7 +38,10 @@ req_wrapping_schema = {"name": "RequestWrapping",
                        "nils": []}
 
 protocol = {
-    "messages": [req_label_schema, labeled_schema]
+    "messages": {
+        "RequestLabel": req_label_schema,
+        "Labeled": labeled_schema,
+    }
 }
 
 request_label_1 = {
@@ -107,9 +110,9 @@ def dynamodb():
 
 
 def test_match_schema():
-    assert match_schema(protocol["messages"],
+    assert match_schema(protocol["messages"].values(),
                         request_label_1) == req_label_schema
-    assert match_schema(protocol["messages"],
+    assert match_schema(protocol["messages"].values(),
                         labeled_1) == labeled_schema
 
 
