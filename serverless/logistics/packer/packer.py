@@ -55,4 +55,4 @@ def handlePacked(message, enactment):
 
 
 def lambda_handler(event, context):
-    adapter.handler(event, context)
+    return adapter.handler(event, context)

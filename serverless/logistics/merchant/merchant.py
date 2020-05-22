@@ -71,4 +71,4 @@ def handlePacked(message, enactment):
 
 
 def lambda_handler(*args):
-    adapter.handler(*args)
+    return adapter.handler(*args)
