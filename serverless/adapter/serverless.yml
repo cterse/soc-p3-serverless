@@ -1,0 +1,46 @@
+service: pos-adapter
+frameworkVersion: ">=1.34.0 <2.0.0"
+
+provider:
+  name: aws
+  runtime: python3.6
+
+plugins:
+  - serverless-python-requirements
+  - serverless-dynamodb-local
+  - serverless-offline # serverless-offline needs to be last in the list
+
+custom:
+  pythonRequirements:
+    layer:
+      name: deps
+      description: Python dependency layer
+      compatibleRuntimes:
+        - python3.6
+  dynamodb:
+  # If you only want to use DynamoDB Local in some stages, declare them here
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      heapInitial: 200m
+      heapMax: 1g
+      migrate: true
+      seed: true
+      convertEmptyValues: true
+
+layers:
+  adapter:
+    path: src # required, path to layer contents on disk
+    name: PosAdapterLayer # optional, Deployed Lambda layer name
+    description: Layer for sharing the PoS adapter module # optional, Description to publish to AWS
+    licenseInfo: GPLv3 # optional, a string specifying license information
+
+resources:
+  Outputs:
+    DepsLayerExport:
+      Value:
+        Ref: PythonRequirementsLambdaLayer
+      Export:
+        Name: PosDepsLayer
