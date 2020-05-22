@@ -1,12 +1,18 @@
 import logging
 import json
+import requests
 from collections import OrderedDict
 from .aws import dynamo_table, lambda_client
 from boto3.dynamodb.conditions import Key, Attr
+import datetime
 
 FORMAT = '%(asctime)-15s %(message)s'
 logging.basicConfig(format=FORMAT, level="DEBUG")
 logger = logging.getLogger('pos')
+
+
+def now():
+    return datetime.datetime.utcnow().isoformat()
 
 
 def match_schema(schemas, message):
@@ -16,45 +22,29 @@ def match_schema(schemas, message):
             return schema
 
 
-def key_condition(schema, message):
-    # initialize condition with the first key
-    cond = Key(schema["keys"][0]).eq(message[key])
-    # if there are any more keys, extend the condition using 'and'
-    for key in schema['keys'][1:]:
-        cond = cond & Key(key).eq(message[key])
-    return cond
-
-
-def check_dependencies(schema, history):
+def check_integrity(message, enactment):
     """
-    Make sure that all in parameters are bound by some message in the history
-    """
-    return all(any(h.get(p) for h in history) for p in schema['ins'])
+    Make sure message is consistent with an enactment.
+    Each message in enactment should have the same keys.
 
-
-def check_integrity(message, history):
-    """
-    Make sure message is compatible with history.
-    Each message in history should have the same key values.
-
-    Returns true if there are no messages in the history with contradictory bindings for any of the parameters.
+    Returns true if the parameters in the message are consistent with all messages in the enactment.
     """
     # may not the most efficient algorithm for large histories
     # might be better to ask the database to find messages that don't match
-    return not any(h.get(p) and message[p] != h[p]
-                   for p in message.keys()
-                   for h in history
-                   if p in h.keys())
+    return all(message[p] == m[p]
+               for p in message.keys()
+               for m in enactment
+               if p in m)
 
 
-def check_outs(schema, message, history):
+def check_outs(schema, enactment):
     """
     Make sure none of the outs have been bound.
     Only use this check if the message is being sent.
     """
     return not any(m.get(p)
-                   for m in history
-                   for p in message.keys())
+                   for m in enactment
+                   for p in schema['outs'])
 
 
 class Adapter:
@@ -64,13 +54,15 @@ class Adapter:
 
         role: name of the role being implemented
         protocol: a protocol specification
-          {messages: [{keys, name, parameters, ins, outs, nils}], keys, name}
+          {name, keys, messages: [{name, from, to, parameters, keys, ins, outs, nils}]}
         configuration: a dictionary of roles to endpoint URLs
+          {role: url}
         history_table_name: the name of the DynamoDB table to use for storing message history
         """
         self.role = role
         self.protocol = protocol
         self.configuration = configuration
+        self.handlers = {}
 
         self.db = dynamo_table(history_table_name)
 
@@ -78,31 +70,43 @@ class Adapter:
         """
         Get all of the messages that match the keys of a message, as specified by schema
         """
-        response = self.db.query(
-            KeyConditionExpression=key_condition(schema, message)
-        )
+        keys = schema['keys']
+
+        # we're using the first key as the partition key
+        key_exp = Key(keys[0]).eq(message[keys[0]])
+
+        # any other keys are just attributes; need a filter expression
+        if len(keys) > 1:
+            f = None
+            for k in keys[1:]:
+                exp = Attr(k).not_exists() | Attr(k).eq(message[k])
+                f = f & exp if f else exp
+
+            response = self.db.query(KeyConditionExpression=key_exp,
+                                     FilterExpression=f)
+        else:
+            response = self.db.query(KeyConditionExpression=key_exp)
+
         return response['Items']
 
-    def get_schema(self, message):
-        return match_schema([schema for schemas in self.protocol['messages']
-                             if schema['recipient'] == self.role],
+    def get_schema(self, to, message):
+        return match_schema([schema for schema in self.protocol['messages']
+                             if schema['to'] == to],
                             message)
 
-    def receive(self, event, context):
-        message = json.loads(event['body'])
-
-        schema = self.get_schema(message)
+    def receive(self, message):
+        schema = self.get_schema(self.role, message)
         if not schema:
             return {
                 "statusCode": 500,
-                "body": "Message does not match any schemas: " + json.dumps(message)
+                "body": "Message does not match any schema: " + json.dumps(message)
             }
 
-        history = self.get_history(schema)
+        enactment = self.get_enactment(schema, message)
 
-        if check_integrity(message, history):
+        if check_integrity(message, enactment):
             self.store(message)
-            self.handle(schema, message)
+            self.handle_message(schema, message, enactment)
             return {
                 "statusCode": 200,
                 "body": json.dumps(message)
@@ -113,24 +117,70 @@ class Adapter:
                 "body": 'Message does not satisfy integrity: ' + json.dumps(message)
             }
 
+    def handler(self, event, context):
+        message = json.loads(event['body'])
+        return self.receive(message)
+
     def store(self, message):
         """Insert a message, represented as a dictionary
         E.g.: {"orderID": 1, "address": "Lancaster"}
         """
-        # TODO insert message in history table
+        message = message.copy()
+        time = now()
+        message["_time"] = time
+        self.db.put_item(Item=message)
+        return time
 
-    def send(self, message):
+    def check_dependencies(self, schema, message):
+        """
+        Make sure that all 'in' parameters are bound and matched by some message in the history
+        """
+        for p in schema['ins']:
+            results = self.db.scan(
+                Select='COUNT',
+                FilterExpression=Attr(p).eq(message[p])
+            )
+            if not results["Count"] > 0:
+                return False
+        return True
+
+    def send(self, to, message):
         """
         Send a message by posting to the recipient's http endpoint,
         after checking for correctness, and storing the message.
         """
-        schema = self.get_schema(message)
+        schema = self.get_schema(to, message)
         if not schema:
-            return
-        history = self.get_history(schema)
+            return False, "Message doesn't match any schema"
+        enactment = self.get_enactment(schema, message)
 
-        if check_dependencies(schema, history) \
-           and check_integrity(message, history) \
-           and check_outs(message, history):
+        if check_outs(schema, enactment) \
+           and check_integrity(message, enactment) \
+           and self.check_dependencies(schema, message):
             self.store(message)
-            # TODO send message via http
+            self.handle_message(schema, message, enactment)
+            requests.post(self.configuration[to],
+                          data=message
+                          )
+            return True, message
+
+    def message(self, schema):
+        """
+        Decorator for declaring message handlers.
+
+        Example:
+        @adapter.message(MessageSchema)
+        def handle_message(message, enactment):
+            'do stuff'
+        """
+        def register_handler(handler):
+            self.handlers[json.dumps(schema, separators=(',', ':'))] = handler
+        return register_handler
+
+    def handle_message(self, schema, message, enactment):
+        """
+        Dispatch user-specified handler for schema, passing message and enactment.
+        """
+        handler = self.handlers.get(json.dumps(schema, separators=(',', ':')))
+        if handler:
+            handler(message, enactment)
