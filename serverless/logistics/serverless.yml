@@ -41,7 +41,7 @@ custom:
   dynamodb:
   # If you only want to use DynamoDB Local in some stages, declare them here
     stages:
-      - dev
+      - local
     start:
       port: 8000
       inMemory: true
@@ -73,12 +73,22 @@ functions:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
   merchant:
-    handler: merchant/merchant.adapter.handler
+    handler: merchant/merchant.lambda_handler
     events:
       - httpApi: POST /merchant/messages
     package:
       include:
         - merchant/**
+    layers:
+      - ${cf:pos-adapter-dev.DepsLayerExport}
+      - ${cf:pos-adapter-dev.AdapterLayerExport}
+  packer:
+    handler: packer/packer.lambda_handler
+    events:
+      - httpApi: POST /packer/messages
+    package:
+      include:
+        - packer/**
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
@@ -104,6 +114,23 @@ resources: # CloudFormation template syntax from here on.
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: MerchantHistory
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+          - AttributeName: _time
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+          - AttributeName: _time
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    packerHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: PackerHistory
         AttributeDefinitions:
           - AttributeName: orderID
             AttributeType: N

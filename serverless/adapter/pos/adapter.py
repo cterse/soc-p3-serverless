@@ -119,6 +119,7 @@ class Adapter:
 
     def handler(self, event, context):
         message = json.loads(event['body'])
+        print("Received message: {}".format(message))
         return self.receive(message)
 
     def store(self, message):

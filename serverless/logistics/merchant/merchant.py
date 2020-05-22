@@ -68,3 +68,7 @@ def handleRequestWrapping(message, enactment):
 @adapter.received(protocol['messages']['RequestWrapping'])
 def handlePacked(message, enactment):
     print("An item has been successfully packed: " + json.dumps(message))
+
+
+def lambda_handler(*args):
+    adapter.handler(*args)
