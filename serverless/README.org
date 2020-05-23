@@ -5,29 +5,36 @@
 ** Stacks
    Each subdirectory is a separate stack, which means it is deployed separately to AWS.
 
-   - layers :: a stack for separating out dependencies that don't need to be updated everytime the other stacks are updated
+   - adapter :: a stack that exports layers for the protocol adapter and its dependencies
    - logistics :: a stack for the logistics scenario
+   - purchase :: a purchase scenario
 
 ** Setup
    1. Install serverless
       #+begin_src sh
-      npm install -g serverless
+        npm install -g serverless
       #+end_src
    2. Configure serverless with your AWS credentials
-   3. Set up other resources
-      E.g. RDS, etc.
-   4. Deploy
-      A. Deploy the deps layer first
-        #+begin_src
-        cd serverless/layers/deps
+   3. Install plugins and deploy adapter layer
+      #+begin_src sh
+        cd serverless/adapter
+        npm install # or yarn install
         sls deploy
-        #+end_src
-      B. Deploy the logistics stack
-        #+begin_src
-        cd serverless/logistics
-        sls deploy
-        #+end_src
-   5. Invoke
-      #+begin_src
-      sls invoke -f hello
       #+end_src
+   4. Install plugins and deploy the logistics scenario
+      #+begin_src sh
+        cd serverless/logistics
+        npm install
+        sls deploy
+      #+end_src
+   5. Create an order in the Orders table via POST or the AWS Console
+      #+begin_src
+      curl -X POST -H 'Content-Type: application/json' ${APPLICATION_ENDPOINT}/orders/messages -d '{"orderID": 1, "address": "Lancaster", "items":"bat,ball"}'
+      #+end_src
+
+** Future Work
+*** Make communication asynchronous
+    Right now the message handlers are invoked during the HTTP request,
+*** Improve enactments
+    The enactment data currently passed to the message handlers contains only a list of related messages.
+    It should be extended to include the parameter bindings, for easier access
