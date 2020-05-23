@@ -7,7 +7,7 @@ name = "Packer"
 
 with open("logistics.json") as stream:
     protocol = json.load(stream)
-with open("configuration.yml") as conf:
+with open(os.environ['CONFIG']) as conf:
     configuration = yaml.safe_load(conf)
 
 adapter = pos.Adapter(name, protocol, configuration, 'PackerHistory')

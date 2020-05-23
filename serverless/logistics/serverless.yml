@@ -6,6 +6,7 @@ provider:
   stage: ${opt:stage,'dev'}
   environment:
     IS_OFFLINE: ${self:custom.isOffline.${self:provider.stage}}
+    CONFIG: ${self:custom.config.${self:provider.stage}}
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -17,8 +18,20 @@ provider:
         - dynamodb:DeleteItem
         - dynamodb:ListStreams
       Resource:
-        Fn::GetAtt:
+        - Fn::GetAtt:
           - ordersTable
+          - Arn
+        - Fn::GetAtt:
+          - merchantHistory
+          - Arn
+        - Fn::GetAtt:
+          - labelerHistory
+          - Arn
+        - Fn::GetAtt:
+          - wrapperHistory
+          - Arn
+        - Fn::GetAtt:
+          - packerHistory
           - Arn
 
 package:
@@ -38,6 +51,9 @@ custom:
   isOffline:
     dev: False
     local: True
+  config:
+    dev: configuration-dev.yml
+    local: configuration-local.yml
   dynamodb:
   # If you only want to use DynamoDB Local in some stages, declare them here
     stages:
@@ -69,6 +85,8 @@ functions:
     package:
       include:
         - merchant/**
+        - logistics.json
+        - configuration-${self:provider.stage}.yml
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
@@ -79,6 +97,8 @@ functions:
     package:
       include:
         - merchant/**
+        - logistics.json
+        - configuration-${self:provider.stage}.yml
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
@@ -89,6 +109,8 @@ functions:
     package:
       include:
         - labeler/**
+        - logistics.json
+        - configuration-${self:provider.stage}.yml
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
@@ -99,6 +121,8 @@ functions:
     package:
       include:
         - wrapper/**
+        - logistics.json
+        - configuration-${self:provider.stage}.yml
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
@@ -109,6 +133,8 @@ functions:
     package:
       include:
         - packer/**
+        - logistics.json
+        - configuration-${self:provider.stage}.yml
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
@@ -134,23 +160,6 @@ resources: # CloudFormation template syntax from here on.
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: MerchantHistory
-        AttributeDefinitions:
-          - AttributeName: orderID
-            AttributeType: N
-          - AttributeName: _time
-            AttributeType: S
-        KeySchema:
-          - AttributeName: orderID
-            KeyType: HASH
-          - AttributeName: _time
-            KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
-    packerHistory:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: PackerHistory
         AttributeDefinitions:
           - AttributeName: orderID
             AttributeType: N
@@ -198,4 +207,20 @@ resources: # CloudFormation template syntax from here on.
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-
+    packerHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: PackerHistory
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+          - AttributeName: _time
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+          - AttributeName: _time
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1

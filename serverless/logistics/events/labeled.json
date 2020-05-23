@@ -1,3 +1,5 @@
 {
-  "body": "{    \"orderID\": 1,    \"address\": \"Lancaster\",    \"label\": \"random\"  }"
+  "orderID": 1,
+  "address": "Lancaster",
+  "label": "random"
 }

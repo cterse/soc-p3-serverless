@@ -3,12 +3,16 @@ import json
 import yaml
 from decimal import Decimal
 import os
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 name = "Merchant"
 
 with open("logistics.json") as stream:
     protocol = json.load(stream)
-with open("configuration.yml") as conf:
+with open(os.environ['CONFIG']) as conf:
     configuration = yaml.safe_load(conf)
 
 adapter = pos.Adapter(name, protocol, configuration, 'MerchantHistory')
@@ -31,7 +35,12 @@ def handle_order(event, context):
     Receives a newly submitted order from the customer, and sends RequestLabel and RequestWrapping messages.
     """
     for record in event["Records"]:
-        order = translate_dynamo(record["dynamodb"]["NewImage"])
+        print(record)
+        update = record.get('dynamodb', {}).get('NewImage')
+        if not update:
+            print("No updates: {}".format(record))
+            return
+        order = translate_dynamo(update)
 
         print("Received order: {}".format(order))
         request_label = {
@@ -57,17 +66,18 @@ def handle_order(event, context):
 
 @adapter.sent(protocol['messages']['RequestLabel'])
 def handleRequestLabel(message, enactment):
-    print("RequestLabel sent: " + json.dumps(message))
+    logger.info("RequestLabel sent: " + json.dumps(message))
 
 
 @adapter.sent(protocol['messages']['RequestWrapping'])
 def handleRequestWrapping(message, enactment):
-    print("RequestWrapping sent: " + json.dumps(message))
+    logger.info("RequestWrapping sent: " + json.dumps(message))
 
 
-@adapter.received(protocol['messages']['RequestWrapping'])
+@adapter.received(protocol['messages']['Packed'])
 def handlePacked(message, enactment):
-    print("An item has been successfully packed: " + json.dumps(message))
+    logger.info("An item has been successfully packed: " +
+                json.dumps(message))
 
 
 def lambda_handler(*args):

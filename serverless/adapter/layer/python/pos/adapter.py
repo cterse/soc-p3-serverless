@@ -4,9 +4,11 @@ import requests
 from .aws import dynamo_table, lambda_client
 from boto3.dynamodb.conditions import Key, Attr
 import datetime
+import threading
+import sys
 
 FORMAT = '%(asctime)-15s %(message)s'
-logging.basicConfig(format=FORMAT, level="DEBUG")
+logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 logger = logging.getLogger('pos')
 
 
@@ -87,7 +89,10 @@ class Adapter:
         else:
             response = self.db.query(KeyConditionExpression=key_exp)
 
-        return response['Items']
+        messages = response['Items']
+        for m in messages:
+            m.pop('_time')  # _time not part of the message
+        return messages
 
     def get_schema(self, to, message):
         return match_schema([schema for schema in self.protocol['messages'].values()
@@ -103,6 +108,12 @@ class Adapter:
             }
 
         enactment = self.get_enactment(schema, message)
+
+        if message in enactment:
+            return {
+                "statusCode": 200,
+                "body": "Duplicate message " + json.dumps(message)
+            }
 
         if check_integrity(message, enactment):
             self.store(message)
@@ -166,8 +177,10 @@ class Adapter:
 
         self.store(message)
         self.handle_sent_message(schema, message, enactment)
+        logger.debug("Sending message {} to {}".format(
+            message, self.configuration[to]))
         requests.post(self.configuration[to],
-                      data=message
+                      json=message
                       )
         return True, message
 

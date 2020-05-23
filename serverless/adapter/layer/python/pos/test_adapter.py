@@ -5,6 +5,7 @@ from boto3.dynamodb.conditions import Key, Attr
 import pytest
 import datetime
 import responses
+import json
 
 os.environ["IS_OFFLINE"] = "True"
 
@@ -61,9 +62,15 @@ labeled_2 = {
     "label": "random-label"
 }
 
+request_wrapping = {
+}
+
 configuration = {
     'Packer': 'http://packer.com/messages'
 }
+
+with open("logistics.json") as stream:
+    logistics = json.load(stream)
 
 adapter = Adapter('Labeler', protocol, configuration, 'LabelerHistory')
 
@@ -114,6 +121,10 @@ def test_match_schema():
                         request_label_1) == req_label_schema
     assert match_schema(protocol["messages"].values(),
                         labeled_1) == labeled_schema
+
+
+def test_match_schema_RequestWrapping():
+    assert match_schema(logistics["messages"].values(), )
 
 
 def test_check_integrity():

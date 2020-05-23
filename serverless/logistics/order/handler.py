@@ -2,8 +2,7 @@ import json
 import boto3
 import os
 
-offline = os.getenv('IS_OFFLINE')
-if offline:
+if os.environ['IS_OFFLINE'] == 'true':
     dynamodb = boto3.resource(
         'dynamodb', endpoint_url='http://localhost:8000/')
 else:
