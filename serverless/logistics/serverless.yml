@@ -82,6 +82,26 @@ functions:
     layers:
       - ${cf:pos-adapter-dev.DepsLayerExport}
       - ${cf:pos-adapter-dev.AdapterLayerExport}
+  labeler:
+    handler: labeler/labeler.lambda_handler
+    events:
+      - httpApi: POST /labeler/messages
+    package:
+      include:
+        - labeler/**
+    layers:
+      - ${cf:pos-adapter-dev.DepsLayerExport}
+      - ${cf:pos-adapter-dev.AdapterLayerExport}
+  wrapper:
+    handler: wrapper/wrapper.lambda_handler
+    events:
+      - httpApi: POST /wrapper/messages
+    package:
+      include:
+        - wrapper/**
+    layers:
+      - ${cf:pos-adapter-dev.DepsLayerExport}
+      - ${cf:pos-adapter-dev.AdapterLayerExport}
   packer:
     handler: packer/packer.lambda_handler
     events:
@@ -144,3 +164,38 @@ resources: # CloudFormation template syntax from here on.
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    labelerHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: LabelerHistory
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+          - AttributeName: _time
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+          - AttributeName: _time
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    wrapperHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: WrapperHistory
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+          - AttributeName: _time
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+          - AttributeName: _time
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
