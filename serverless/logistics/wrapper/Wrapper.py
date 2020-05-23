@@ -27,7 +27,7 @@ def handleRequestWrapping(message, enactment):
 
 
 @adapter.sent(protocol['messages']['Wrapped'])
-def handleLabeled(message, enactment):
+def handleWrapped(message, enactment):
     print("Wrapped message has been sent: " + json.dumps(message))
 
 
