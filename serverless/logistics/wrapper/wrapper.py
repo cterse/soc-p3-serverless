@@ -1,6 +1,5 @@
 import pos
 import json
-import uuid
 
 name = "Wrapper"
 
