@@ -9,6 +9,10 @@ provider:
     CONFIG: ${self:custom.config.${self:provider.stage}}
     ROLE: Packer
   iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: "*"
     - Effect: "Allow"
       Action:
         - dynamodb:Query
@@ -25,13 +29,12 @@ provider:
 
 package:
   individually: true
-  exclude:
-    - '**'
+#  exclude:
+#    - '**'
 
-plugins:
-  - serverless-python-requirements
-  - serverless-dynamodb-local
-  - serverless-offline # serverless-offline needs to be last in the list
+#plugins:
+#  - serverless-dynamodb-local
+#  - serverless-offline # serverless-offline needs to be last in the list
 
 custom:
   stages:
@@ -41,8 +44,8 @@ custom:
     dev: False
     local: True
   config:
-    dev: configuration-dev.yml
-    local: configuration-local.yml
+    dev: /opt/configuration-dev.json
+    local: /opt/configuration-local.json
   dynamodb:
   # If you only want to use DynamoDB Local in some stages, declare them here
     stages:
@@ -59,25 +62,25 @@ custom:
 functions:
   PackerAdapter:
     name: PackerAdapter
-      handler: adapter.lambda_handler
+    handler: adapter.lambda_handler
     layers:
       - ${cf:pos-adapter-dev.AdapterLayerExport}
       - ${cf:logistics-dev.ConfigurationLayerExport}
   PackerReceiver:
     name: PackerReceiver
-      handler: receiver.lambda_handler
+    handler: receiver.lambda_handler
     events:
       - httpApi: POST /packer/messages
     layers:
       - ${cf:pos-receiver-dev.ReceiverLayerExport}
   LabeledReactor:
-    name: Labeled_Reactor
+    name: Packer_Labeled_Reactor
     handler: labeled_reactor.lambda_handler
   WrappedReactor:
-    name: Wrapped_Reactor
+    name: Packer_Wrapped_Reactor
     handler: wrapped_reactor.lambda_handler
   PackedReactor:
-    name: Packed_Reactor
+    name: Packer_Packed_Reactor
     handler: packed_reactor.lambda_handler
 
 resources: # CloudFormation template syntax from here on.
@@ -88,7 +91,7 @@ resources: # CloudFormation template syntax from here on.
         TableName: PackerHistory
         AttributeDefinitions:
           - AttributeName: orderID
-            AttributeType: N
+            AttributeType: S
           - AttributeName: _time
             AttributeType: S
         KeySchema:

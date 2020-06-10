@@ -21,7 +21,7 @@ def lambda_handler(event, context):
     message = json.loads(message)
     print(message)
     response = requests.post(event["to"], json=message)
-    print(str(response))
+    print(str(response.text))
     return {
         'statusCode': 200,
         'body': json.dumps('Message has been sent!')

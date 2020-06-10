@@ -49,14 +49,14 @@ def get_order_proactor(event, context):
         }
         payload = json.dumps(payload).encode('utf-8')
         print("Sending RequestLabel: {}".format(request_label))
-        response = client.invoke(FunctionName='adapter', InvocationType='Event',
+        response = client.invoke(FunctionName='MerchantAdapter', InvocationType='Event',
                                  LogType='Tail', ClientContext='Amit', Payload=payload)
         print(response)
 
         for i, item in enumerate(order["items"].split(',')):
             request_wrapping = {
                 "orderID": order["orderID"],
-                "itemID": i,
+                "itemID": str(i),
                 "item": item
             }
             payload = {
@@ -66,6 +66,6 @@ def get_order_proactor(event, context):
             }
             payload = json.dumps(payload).encode('utf-8')
             print("Sending RequestWrapping: {}".format(request_wrapping))
-            response = client.invoke(FunctionName='adapter', InvocationType='Event',
+            response = client.invoke(FunctionName='MerchantAdapter', InvocationType='Event',
                                      LogType='Tail', ClientContext='Amit', Payload=payload)
             print(response)

@@ -20,5 +20,7 @@ plugins:
   - serverless-offline # serverless-offline needs to be last in the list
 
 functions:
-  Emitter: # need this name so all the adapters can invoke it
+  Emitter:
     handler: emitter.lambda_handler
+    # need this name so all the adapters can invoke it
+    name: Emitter

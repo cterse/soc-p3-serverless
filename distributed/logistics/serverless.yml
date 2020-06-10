@@ -6,7 +6,7 @@ provider:
   runtime: python3.8
 
 layers:
-  receiver:
+  configuration:
     path: configuration # required, path to layer contents on disk
     name: LogisticsConfigurationLayer # optional, Deployed Lambda layer name
     description: Layer for sharing the protocol configuration files # optional, Description to publish to AWS
@@ -16,6 +16,6 @@ resources:
   Outputs:
     ConfigurationLayerExport:
       Value:
-        Ref: LogisticsConfigurationLambdaLayer
+        Ref: ConfigurationLambdaLayer
       Export:
         Name: LogisticsConfigurationLayer

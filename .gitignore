@@ -9,3 +9,5 @@ node_modules/
 .dynamodb/
 .coverage
 htmlcov/
+reactors.json
+configuration-dev.json

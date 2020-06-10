@@ -9,6 +9,10 @@ provider:
     CONFIG: ${self:custom.config.${self:provider.stage}}
     ROLE: Merchant
   iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: "*"
     - Effect: "Allow"
       Action:
         - dynamodb:Query
@@ -28,13 +32,12 @@ provider:
 
 package:
   individually: true
-  exclude:
-    - '**'
+#  exclude:
+#    - '**'
 
-plugins:
-  - serverless-python-requirements
-  - serverless-dynamodb-local
-  - serverless-offline # serverless-offline needs to be last in the list
+#plugins:
+#  - serverless-dynamodb-local
+#  - serverless-offline # serverless-offline needs to be last in the list
 
 custom:
   stages:
@@ -44,8 +47,8 @@ custom:
     dev: False
     local: True
   config:
-    dev: configuration-dev.yml
-    local: configuration-local.yml
+    dev: /opt/configuration-dev.json
+    local: /opt/configuration-local.json
   dynamodb:
   # If you only want to use DynamoDB Local in some stages, declare them here
     stages:
@@ -79,17 +82,20 @@ functions:
         - po_proactor.py
   MerchantAdapter:
     name: MerchantAdapter
-      handler: adapter.lambda_handler
+    handler: adapter.lambda_handler
     layers:
       - ${cf:pos-adapter-dev.AdapterLayerExport}
       - ${cf:logistics-dev.ConfigurationLayerExport}
   MerchantReceiver:
     name: MerchantReceiver
-      handler: receiver.lambda_handler
+    handler: receiver.lambda_handler
     events:
       - httpApi: POST /merchant/messages
     layers:
       - ${cf:pos-receiver-dev.ReceiverLayerExport}
+  PackedReactor:
+    name: Merchant_Packed_Reactor
+    handler: packed_reactor.lambda_handler
 
 resources: # CloudFormation template syntax from here on.
   Resources:
@@ -99,7 +105,7 @@ resources: # CloudFormation template syntax from here on.
         TableName: Orders
         AttributeDefinitions:
           - AttributeName: orderID
-            AttributeType: N
+            AttributeType: S
         KeySchema:
           - AttributeName: orderID
             KeyType: HASH
@@ -114,7 +120,7 @@ resources: # CloudFormation template syntax from here on.
         TableName: MerchantHistory
         AttributeDefinitions:
           - AttributeName: orderID
-            AttributeType: N
+            AttributeType: S
           - AttributeName: _time
             AttributeType: S
         KeySchema:
