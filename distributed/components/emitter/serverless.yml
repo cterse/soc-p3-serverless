@@ -1,0 +1,24 @@
+service: pos-emitter
+frameworkVersion: ">=1.34.0 <2.0.0"
+
+provider:
+  name: aws
+  runtime: python3.8
+  environment:
+    IS_OFFLINE: ${self:custom.isOffline.${self:provider.stage}}
+
+custom:
+  stages:
+    - dev
+    - local
+  isOffline:
+    dev: False
+    local: True
+
+plugins:
+  - serverless-python-requirements
+  - serverless-offline # serverless-offline needs to be last in the list
+
+functions:
+  Emitter: # need this name so all the adapters can invoke it
+    handler: emitter.lambda_handler

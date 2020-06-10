@@ -1,0 +1,95 @@
+service: dst-labeler
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: ${opt:stage,'dev'}
+  environment:
+    IS_OFFLINE: ${self:custom.isOffline.${self:provider.stage}}
+    CONFIG: ${self:custom.config.${self:provider.stage}}
+    ROLE: Labeler
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:ListStreams
+      Resource:
+        - Fn::GetAtt:
+          - labelerHistory
+          - Arn
+
+package:
+  individually: true
+  exclude:
+    - '**'
+
+plugins:
+  - serverless-python-requirements
+  - serverless-dynamodb-local
+  - serverless-offline # serverless-offline needs to be last in the list
+
+custom:
+  stages:
+    - dev
+    - local
+  isOffline:
+    dev: False
+    local: True
+  config:
+    dev: configuration-dev.yml
+    local: configuration-local.yml
+  dynamodb:
+  # If you only want to use DynamoDB Local in some stages, declare them here
+    stages:
+      - local
+    start:
+      port: 8000
+      inMemory: true
+      heapInitial: 200m
+      heapMax: 1g
+      migrate: true
+      seed: true
+      convertEmptyValues: true
+
+functions:
+  LabelerAdapter:
+    name: LabelerAdapter
+      handler: adapter.lambda_handler
+    layers:
+      - ${cf:pos-adapter-dev.AdapterLayerExport}
+      - ${cf:logistics-dev.ConfigurationLayerExport}
+  LabelerReceiver:
+    name: LabelerReceiver
+      handler: receiver.lambda_handler
+    events:
+      - httpApi: POST /labeler/messages
+    layers:
+      - ${cf:pos-receiver-dev.ReceiverLayerExport}
+  LabeledReactor:
+    name: Labeled_Reactor
+    handler: labeled_reactor.lambda_handler
+
+resources: # CloudFormation template syntax from here on.
+  Resources:
+    labelerHistory:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: LabelerHistory
+        AttributeDefinitions:
+          - AttributeName: orderID
+            AttributeType: N
+          - AttributeName: _time
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderID
+            KeyType: HASH
+          - AttributeName: _time
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
