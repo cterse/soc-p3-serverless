@@ -8,6 +8,7 @@ provider:
     IS_OFFLINE: ${self:custom.isOffline.${self:provider.stage}}
     CONFIG: ${self:custom.config.${self:provider.stage}}
     ROLE: Merchant
+  versionFunctions: false
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -86,13 +87,12 @@ functions:
     layers:
       - ${cf:pos-adapter-dev.AdapterLayerExport}
       - ${cf:logistics-dev.ConfigurationLayerExport}
+    reservedConcurrency: 1
   MerchantReceiver:
     name: MerchantReceiver
     handler: receiver.lambda_handler
     events:
       - httpApi: POST /merchant/messages
-    layers:
-      - ${cf:pos-receiver-dev.ReceiverLayerExport}
   PackedReactor:
     name: Merchant_Packed_Reactor
     handler: packed_reactor.lambda_handler

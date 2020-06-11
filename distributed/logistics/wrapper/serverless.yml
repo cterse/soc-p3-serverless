@@ -8,6 +8,7 @@ provider:
     IS_OFFLINE: ${self:custom.isOffline.${self:provider.stage}}
     CONFIG: ${self:custom.config.${self:provider.stage}}
     ROLE: Wrapper
+  versionFunctions: false
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -66,13 +67,12 @@ functions:
     layers:
       - ${cf:pos-adapter-dev.AdapterLayerExport}
       - ${cf:logistics-dev.ConfigurationLayerExport}
+    reservedConcurrency: 1
   WrapperReceiver:
     name: WrapperReceiver
     handler: receiver.lambda_handler
     events:
       - httpApi: POST /wrapper/messages
-    layers:
-      - ${cf:pos-receiver-dev.ReceiverLayerExport}
   RequestWrappingReactor:
     name: Wrapper_RequestWrapping_Reactor
     handler: request_wrapping_reactor.lambda_handler
