@@ -3,15 +3,7 @@
 # perform the same action on all services, defaulting to deploy
 COMMAND=${1:-deploy}
 
-pushd components/adapter/
-serverless $COMMAND
-popd
-
 pushd components/emitter/
-serverless $COMMAND
-popd
-
-pushd components/receiver/
 serverless $COMMAND
 popd
 
