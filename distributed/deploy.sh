@@ -11,17 +11,17 @@ cd logistics
 serverless $COMMAND
 
 pushd merchant
-serverless $COMMAND
+serverless $COMMAND &
 popd
 
 pushd labeler
-serverless $COMMAND
+serverless $COMMAND &
 popd
 
 pushd wrapper
-serverless $COMMAND
+serverless $COMMAND &
 popd
 
 pushd packer
-serverless $COMMAND
+serverless $COMMAND &
 popd

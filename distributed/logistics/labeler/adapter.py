@@ -6,7 +6,7 @@ import datetime
 import threading
 import sys
 import os
-from decimal import Decimal
+import math
 
 FORMAT = '%(asctime)-15s %(message)s'
 logging.basicConfig(format=FORMAT, level=logging.DEBUG)
@@ -41,6 +41,7 @@ def check_integrity(message, enactment):
 
     Returns true if the parameters in the message are consistent with all messages in the enactment.
     """
+    print("Checking integrity: {} in {}".format(message, enactment))
     # may not the most efficient algorithm for large histories
     # might be better to ask the database to find messages that don't match
     return all(message[p] == m[p]
@@ -83,6 +84,7 @@ class Adapter:
         """
         Get all of the messages that match the keys of a message, as specified by schema
         """
+        logger.info("Getting enactment for schema: {}".format(schema))
         keys = schema['keys']
         print("Keys are " + str(keys))
         # we're using the first key as the partition key
@@ -106,6 +108,7 @@ class Adapter:
         messages = response['Items']
         for m in messages:
             m.pop('_time')  # _time not part of the message
+            m.pop('_exp')  # _exp not part of the message
         return messages
 
     def get_schema(self, to, message):
@@ -123,13 +126,14 @@ class Adapter:
 
         enactment = self.get_enactment(schema, message)
 
+        print("Checking for duplicates")
         if message in enactment:
             return {
                 "statusCode": 200,
                 "body": "Duplicate message " + json.dumps(message)
             }
 
-        if check_integrity(message, enactment):
+        if not enactment or check_integrity(message, enactment):
             self.store(message)
             #self.handle_received_message(schema, message, enactment)
             print("Schema is " + str(schema))
@@ -167,6 +171,9 @@ class Adapter:
         message = message.copy()
         time = now()
         message["_time"] = time
+        # set expiration time at 10min in the future
+        message["_exp"] = math.floor(
+            datetime.datetime.utcnow().timestamp()) + 10*60
         self.db.put_item(Item=message)
         return time
 
@@ -198,18 +205,22 @@ class Adapter:
         enactment = self.get_enactment(schema, message)
         print("Enactment is" + str(enactment))
 
+        logger.info("Checking outs")
         if not check_outs(schema, enactment):
             print("Failed out check")
             return False, "Failed out check: {}".format(message)
 
+        logger.info("Checking integrity")
         if not check_integrity(message, enactment):
             print("Failed integrity check")
             return False, "Failed integrity check: {}".format(message)
 
+        logger.info("Checking dependencies")
         if not self.check_dependencies(schema, message):
             print("Failed dependency check")
             return False, "Failed dependency check: {}".format(message)
 
+        logger.info("Storing message")
         self.store(message)
         #self.handle_sent_message(schema, message, enactment)
         print("Schema is " + str(schema))
@@ -221,6 +232,7 @@ class Adapter:
         payload = json.dumps(payload).encode('utf-8')
         reactor = reactors.get(schema["name"])
         if reactor:
+            logger.info("Invoking reactor: {}".format(reactor))
             response = client.invoke(
                 FunctionName=reactor, InvocationType='Event', LogType='Tail', ClientContext='Amit', Payload=payload)
             print(response)
