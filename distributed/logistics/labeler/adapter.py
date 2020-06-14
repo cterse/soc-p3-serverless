@@ -171,9 +171,9 @@ class Adapter:
         message = message.copy()
         time = now()
         message["_time"] = time
-        # set expiration time at 10min in the future
+        # set expiration time at 30min in the future
         message["_exp"] = math.floor(
-            datetime.datetime.utcnow().timestamp()) + 10*60
+            datetime.datetime.utcnow().timestamp()) + 30*60
         self.db.put_item(Item=message)
         return time
 
