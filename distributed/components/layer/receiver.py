@@ -14,12 +14,14 @@ adapter = os.environ['ROLE']+"Adapter"
 
 
 def lambda_handler(event, context):
-    message = event["message"]
-    payload = {"type": "receive", "message": event["message"]}
+    print(event)
+    message = json.loads(event["body"])
+    payload = {"type": "receive", "message": message}
     payload = json.dumps(payload).encode('utf-8')
     print("Received message: {}".format(message))
     response = client.invoke(FunctionName=adapter, InvocationType='Event',
                              LogType='Tail', ClientContext='Amit', Payload=payload)
+    print("Invoked: {}, response: {}".format(adapter, response))
     return {
         'statusCode': 200,
         'body': json.dumps('Message received!')

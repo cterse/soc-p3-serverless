@@ -11,16 +11,8 @@ client = boto3.client('lambda')
 
 
 def lambda_handler(event, context):
-    # TODO implement
-    print(str(event))
-    print("Parameters are " + str(event["parameters"]))
-    print(event["parameters"])
-    message = event["parameters"]
-    message = str(message)
-    message = message.replace("\'", "\"")
-    message = json.loads(message)
-    print(message)
-    response = requests.post(event["to"], json=message)
+    print(event)
+    response = requests.post(event["to"], json=event['parameters'])
     print(str(response.text))
     return {
         'statusCode': 200,

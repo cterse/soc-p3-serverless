@@ -100,9 +100,13 @@ class Adapter:
                 f = f & exp if f else exp
 
             response = self.db.query(KeyConditionExpression=key_exp,
-                                     FilterExpression=f)
+                                     FilterExpression=f,
+                                     ConsistentRead=True
+                                     )
         else:
-            response = self.db.query(KeyConditionExpression=key_exp)
+            response = self.db.query(KeyConditionExpression=key_exp,
+                                     ConsistentRead=True
+                                     )
 
         print("DB response is " + str(response))
         messages = response['Items']
@@ -135,7 +139,7 @@ class Adapter:
 
         if not enactment or check_integrity(message, enactment):
             self.store(message)
-            #self.handle_received_message(schema, message, enactment)
+            # self.handle_received_message(schema, message, enactment)
             print("Schema is " + str(schema))
             payload = {
                 "message": message,
@@ -171,9 +175,9 @@ class Adapter:
         message = message.copy()
         time = now()
         message["_time"] = time
-        # set expiration time at 30min in the future
+        # set expiration time at 15min in the future
         message["_exp"] = math.floor(
-            datetime.datetime.utcnow().timestamp()) + 30*60
+            datetime.datetime.utcnow().timestamp()) + 15*60
         self.db.put_item(Item=message)
         return time
 
@@ -184,7 +188,8 @@ class Adapter:
         for p in schema['ins']:
             results = self.db.scan(
                 Select='COUNT',
-                FilterExpression=Attr(p).eq(message[p])
+                FilterExpression=Attr(p).eq(message[p]),
+                ConsistentRead=True
             )
             if not results["Count"] > 0:
                 return False
@@ -222,7 +227,7 @@ class Adapter:
 
         logger.info("Storing message")
         self.store(message)
-        #self.handle_sent_message(schema, message, enactment)
+        # self.handle_sent_message(schema, message, enactment)
         print("Schema is " + str(schema))
         payload = {
             "message": message,
@@ -249,7 +254,7 @@ class Adapter:
         # json=message
         #
         payload = json.dumps(payload).encode('utf-8')
-        response = client.invoke(FunctionName='Emitter', InvocationType='Event',
+        response = client.invoke(FunctionName=ROLE+'Emitter', InvocationType='Event',
                                  LogType='Tail', ClientContext='Amit', Payload=payload)
         print(response)
 

@@ -30,8 +30,9 @@ provider:
 
 package:
   individually: true
-#  exclude:
-#    - '**'
+  include:
+    - '!**'
+    - reactors.json
 
 #plugins:
 #  - serverless-dynamodb-local
@@ -63,19 +64,32 @@ custom:
 functions:
   WrapperAdapter:
     name: WrapperAdapter
-    handler: adapter.lambda_handler
+    handler: /opt/adapter.lambda_handler
     layers:
-      - ${cf:pos-adapter-dev.AdapterLayerExport}
+      - ${cf:pos-components-dev.AdapterLayerExport}
+      - ${cf:pos-components-dev.DepsLayerExport}
       - ${cf:logistics-dev.ConfigurationLayerExport}
     reservedConcurrency: 1
+  WrapperEmitter:
+    name: WrapperEmitter
+    handler: /opt/emitter.lambda_handler
+    layers:
+      - ${cf:pos-components-dev.EmitterLayerExport}
+      - ${cf:pos-components-dev.DepsLayerExport}
   WrapperReceiver:
     name: WrapperReceiver
-    handler: receiver.lambda_handler
+    handler: /opt/receiver.lambda_handler
+    layers:
+      - ${cf:pos-components-dev.ReceiverLayerExport}
+      - ${cf:pos-components-dev.DepsLayerExport}
     events:
       - httpApi: POST /wrapper/messages
   RequestWrappingReactor:
     name: Wrapper_RequestWrapping_Reactor
     handler: request_wrapping_reactor.lambda_handler
+    package:
+      include:
+        - request_wrapping_reactor.py
 
 resources: # CloudFormation template syntax from here on.
   Resources:

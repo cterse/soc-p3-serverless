@@ -1,4 +1,4 @@
-service: pos-adapter
+service: pos-components
 frameworkVersion: ">=1.34.0 <2.0.0"
 
 provider:
@@ -12,7 +12,7 @@ plugins:
 
 custom:
   pythonRequirements:
-    fileName: layer/requirements.txt
+    fileName: requirements.txt
     layer:
       name: deps
       description: Python dependency layer
@@ -40,7 +40,25 @@ layers:
     package:
       include:
         - '!./**'
-        - python/adapter.py
+        - adapter.py
+  emitter:
+    path: layer # required, path to layer contents on disk
+    name: PosEmitterLayer # optional, Deployed Lambda layer name
+    description: Layer for sharing the PoS emitter module # optional, Description to publish to AWS
+    licenseInfo: GPLv3 # optional, a string specifying license information
+    package:
+      include:
+        - '!./**'
+        - emitter.py
+  receiver:
+    path: layer # required, path to layer contents on disk
+    name: PosReceiverLayer # optional, Deployed Lambda layer name
+    description: Layer for sharing the PoS receiver module # optional, Description to publish to AWS
+    licenseInfo: GPLv3 # optional, a string specifying license information
+    package:
+      include:
+        - '!./**'
+        - receiver.py
 
 resources:
   Outputs:
@@ -54,3 +72,13 @@ resources:
         Ref: AdapterLambdaLayer
       Export:
         Name: PosAdapterLayer
+    EmitterLayerExport:
+      Value:
+        Ref: EmitterLambdaLayer
+      Export:
+        Name: PosEmitterLayer
+    ReceiverLayerExport:
+      Value:
+        Ref: ReceiverLambdaLayer
+      Export:
+        Name: PosReceiverLayer

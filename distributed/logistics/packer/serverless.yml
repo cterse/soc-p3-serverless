@@ -30,8 +30,9 @@ provider:
 
 package:
   individually: true
-#  exclude:
-#    - '**'
+  include:
+    - '!**'
+    - reactors.json
 
 #plugins:
 #  - serverless-dynamodb-local
@@ -63,25 +64,44 @@ custom:
 functions:
   PackerAdapter:
     name: PackerAdapter
-    handler: adapter.lambda_handler
+    handler: /opt/adapter.lambda_handler
     layers:
-      - ${cf:pos-adapter-dev.AdapterLayerExport}
+      - ${cf:pos-components-dev.AdapterLayerExport}
+      - ${cf:pos-components-dev.DepsLayerExport}
       - ${cf:logistics-dev.ConfigurationLayerExport}
     reservedConcurrency: 1
+  PackerEmitter:
+    name: PackerEmitter
+    handler: /opt/emitter.lambda_handler
+    layers:
+      - ${cf:pos-components-dev.EmitterLayerExport}
+      - ${cf:pos-components-dev.DepsLayerExport}
   PackerReceiver:
     name: PackerReceiver
-    handler: receiver.lambda_handler
+    handler: /opt/receiver.lambda_handler
+    layers:
+      - ${cf:pos-components-dev.ReceiverLayerExport}
+      - ${cf:pos-components-dev.DepsLayerExport}
     events:
       - httpApi: POST /packer/messages
   LabeledReactor:
     name: Packer_Labeled_Reactor
     handler: labeled_reactor.lambda_handler
+    package:
+      include:
+        - labeled_reactor.py
   WrappedReactor:
     name: Packer_Wrapped_Reactor
     handler: wrapped_reactor.lambda_handler
+    package:
+      include:
+        - wrapped_reactor.py
   PackedReactor:
     name: Packer_Packed_Reactor
     handler: packed_reactor.lambda_handler
+    package:
+      include:
+        - packed_reactor.py
 
 resources: # CloudFormation template syntax from here on.
   Resources:
