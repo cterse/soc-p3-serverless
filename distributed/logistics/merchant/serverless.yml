@@ -109,9 +109,7 @@ resources: # CloudFormation template syntax from here on.
         KeySchema:
           - AttributeName: orderID
             KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
+        BillingMode: PAY_PER_REQUEST
         StreamSpecification:
           StreamViewType: NEW_IMAGE
     merchantHistory:
