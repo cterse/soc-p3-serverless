@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-client = boto3.client('lambda')
+client = boto3.client("lambda")
 
 name = "Merchant"
 
@@ -30,7 +30,7 @@ def get_order_proactor(event, context):
     """
     for record in event["Records"]:
         print(record)
-        update = record.get('dynamodb', {}).get('NewImage')
+        update = record.get("dynamodb", {}).get("NewImage")
         if not update:
             print("No updates: {}".format(record))
             return
@@ -38,34 +38,33 @@ def get_order_proactor(event, context):
 
         print("Received order: {}".format(order))
 
-        request_label = {
-            "orderID": order["orderID"],
-            "address": order["address"]
-        }
-        payload = {
-            "type": "send",
-            "to": "Labeler",
-            "message": request_label
-        }
-        payload = json.dumps(payload).encode('utf-8')
+        request_label = {"orderID": order["orderID"], "address": order["address"]}
+        payload = {"type": "send", "to": "Labeler", "message": request_label}
+        payload = json.dumps(payload).encode("utf-8")
         print("Sending RequestLabel: {}".format(request_label))
-        response = client.invoke(FunctionName='MerchantAdapter', InvocationType='Event',
-                                 LogType='Tail', ClientContext='Amit', Payload=payload)
+        response = client.invoke(
+            FunctionName="MerchantAdapter",
+            InvocationType="Event",
+            LogType="Tail",
+            ClientContext="Amit",
+            Payload=payload,
+        )
         print(response)
 
-        for i, item in enumerate(order["items"].split(',')):
+        for i, item in enumerate(order["items"].split(",")):
             request_wrapping = {
                 "orderID": order["orderID"],
                 "itemID": str(i),
-                "item": item
+                "item": item,
             }
-            payload = {
-                "type": "send",
-                "to": "Wrapper",
-                "message": request_wrapping
-            }
-            payload = json.dumps(payload).encode('utf-8')
+            payload = {"type": "send", "to": "Wrapper", "message": request_wrapping}
+            payload = json.dumps(payload).encode("utf-8")
             print("Sending RequestWrapping: {}".format(request_wrapping))
-            response = client.invoke(FunctionName='MerchantAdapter', InvocationType='Event',
-                                     LogType='Tail', ClientContext='Amit', Payload=payload)
+            response = client.invoke(
+                FunctionName="MerchantAdapter",
+                InvocationType="Event",
+                LogType="Tail",
+                ClientContext="Amit",
+                Payload=payload,
+            )
             print(response)

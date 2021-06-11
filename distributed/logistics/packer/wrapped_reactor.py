@@ -5,13 +5,18 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-client = boto3.client('lambda')
+client = boto3.client("lambda")
 
 
 def lambda_handler(event, context):
     # TODO implement
 
-    print("Reactor of Wrapped message: " + str(event["message"]) + "; Enactment is " + str(event["enactment"]))
+    print(
+        "Reactor of Wrapped message: "
+        + str(event["message"])
+        + "; Enactment is "
+        + str(event["enactment"])
+    )
     message = event["message"]
     enactment = event["enactment"]
     labeled_msg = next((m for m in enactment if m.get("label")), None)
@@ -25,12 +30,17 @@ def lambda_handler(event, context):
                 "itemID": message["itemID"],
                 "wrapping": message["wrapping"],
                 "label": labeled_msg["label"],
-                "status": "packed"
-            }
+                "status": "packed",
+            },
         }
 
-        payload = json.dumps(payload).encode('utf-8')
+        payload = json.dumps(payload).encode("utf-8")
         print("Sending Packed: {}".format(payload))
-        response = client.invoke(FunctionName='PackerAdapter', InvocationType='Event',
-                                 LogType='Tail', ClientContext='Amit', Payload=payload)
+        response = client.invoke(
+            FunctionName="PackerAdapter",
+            InvocationType="Event",
+            LogType="Tail",
+            ClientContext="Amit",
+            Payload=payload,
+        )
         print(response)

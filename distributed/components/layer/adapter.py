@@ -8,9 +8,9 @@ import sys
 import os
 import math
 
-FORMAT = '%(asctime)-15s %(message)s'
+FORMAT = "%(asctime)-15s %(message)s"
 logging.basicConfig(format=FORMAT, level=logging.DEBUG)
-logger = logging.getLogger('pos')
+logger = logging.getLogger("pos")
 
 # Get role from environment, instead of hard-coding
 ROLE = os.environ["ROLE"]
@@ -30,7 +30,11 @@ def now():
 def match_schema(schemas, message):
     for schema in schemas:
         # find schema with exactly the same parameters (except nils, which should not be bound)
-        if not set(schema['ins']).union(schema['outs']).symmetric_difference(message.keys()):
+        if (
+            not set(schema["ins"])
+            .union(schema["outs"])
+            .symmetric_difference(message.keys())
+        ):
             return schema
 
 
@@ -44,10 +48,7 @@ def check_integrity(message, enactment):
     print("Checking integrity: {} in {}".format(message, enactment))
     # may not the most efficient algorithm for large histories
     # might be better to ask the database to find messages that don't match
-    return all(message[p] == m[p]
-               for p in message.keys()
-               for m in enactment
-               if p in m)
+    return all(message[p] == m[p] for p in message.keys() for m in enactment if p in m)
 
 
 def check_outs(schema, enactment):
@@ -55,9 +56,7 @@ def check_outs(schema, enactment):
     Make sure none of the outs have been bound.
     Only use this check if the message is being sent.
     """
-    return not any(m.get(p)
-                   for m in enactment
-                   for p in schema['outs'])
+    return not any(m.get(p) for m in enactment for p in schema["outs"])
 
 
 class Adapter:
@@ -85,7 +84,7 @@ class Adapter:
         Get all of the messages that match the keys of a message, as specified by schema
         """
         logger.info("Getting enactment for schema: {}".format(schema))
-        keys = schema['keys']
+        keys = schema["keys"]
         print("Keys are " + str(keys))
         # we're using the first key as the partition key
         key_exp = Key(keys[0]).eq(message[keys[0]])
@@ -99,33 +98,37 @@ class Adapter:
                 exp = Attr(k).not_exists() | Attr(k).eq(message[k])
                 f = f & exp if f else exp
 
-            response = self.db.query(KeyConditionExpression=key_exp,
-                                     FilterExpression=f,
-                                     ConsistentRead=True
-                                     )
+            response = self.db.query(
+                KeyConditionExpression=key_exp, FilterExpression=f, ConsistentRead=True
+            )
         else:
-            response = self.db.query(KeyConditionExpression=key_exp,
-                                     ConsistentRead=True
-                                     )
+            response = self.db.query(
+                KeyConditionExpression=key_exp, ConsistentRead=True
+            )
 
         print("DB response is " + str(response))
-        messages = response['Items']
+        messages = response["Items"]
         for m in messages:
-            m.pop('_time')  # _time not part of the message
-            m.pop('_exp')  # _exp not part of the message
+            m.pop("_time")  # _time not part of the message
+            m.pop("_exp")  # _exp not part of the message
         return messages
 
     def get_schema(self, to, message):
-        return match_schema([schema for schema in self.protocol['messages'].values()
-                             if schema['to'] == to],
-                            message)
+        return match_schema(
+            [
+                schema
+                for schema in self.protocol["messages"].values()
+                if schema["to"] == to
+            ],
+            message,
+        )
 
     def receive(self, message):
         schema = self.get_schema(self.role, message)
         if not schema:
             return {
                 "statusCode": 500,
-                "body": "Message does not match any schema: " + json.dumps(message)
+                "body": "Message does not match any schema: " + json.dumps(message),
             }
 
         enactment = self.get_enactment(schema, message)
@@ -134,37 +137,36 @@ class Adapter:
         if message in enactment:
             return {
                 "statusCode": 200,
-                "body": "Duplicate message " + json.dumps(message)
+                "body": "Duplicate message " + json.dumps(message),
             }
 
         if not enactment or check_integrity(message, enactment):
             self.store(message)
             # self.handle_received_message(schema, message, enactment)
             print("Schema is " + str(schema))
-            payload = {
-                "message": message,
-                "enactment": enactment
-            }
+            payload = {"message": message, "enactment": enactment}
 
-            payload = json.dumps(payload).encode('utf-8')
+            payload = json.dumps(payload).encode("utf-8")
             reactor = reactors.get(schema["name"])
             if reactor:
                 response = client.invoke(
-                    FunctionName=reactor, InvocationType='Event', LogType='Tail', ClientContext='Amit', Payload=payload)
+                    FunctionName=reactor,
+                    InvocationType="Event",
+                    LogType="Tail",
+                    ClientContext="Amit",
+                    Payload=payload,
+                )
                 print(response)
 
-            return {
-                "statusCode": 200,
-                "body": json.dumps(message)
-            }
+            return {"statusCode": 200, "body": json.dumps(message)}
         else:
             return {
                 "statusCode": 500,
-                "body": 'Message does not satisfy integrity: ' + json.dumps(message)
+                "body": "Message does not satisfy integrity: " + json.dumps(message),
             }
 
     def handler(self, event, context):
-        message = json.loads(event['body'])
+        message = json.loads(event["body"])
         print("Received message: {}".format(message))
         return self.receive(message)
 
@@ -176,8 +178,7 @@ class Adapter:
         time = now()
         message["_time"] = time
         # set expiration time at 15min in the future
-        message["_exp"] = math.floor(
-            datetime.datetime.utcnow().timestamp()) + 15*60
+        message["_exp"] = math.floor(datetime.datetime.utcnow().timestamp()) + 15 * 60
         self.db.put_item(Item=message)
         return time
 
@@ -185,11 +186,11 @@ class Adapter:
         """
         Make sure that all 'in' parameters are bound and matched by some message in the history
         """
-        for p in schema['ins']:
+        for p in schema["ins"]:
             results = self.db.scan(
-                Select='COUNT',
+                Select="COUNT",
                 FilterExpression=Attr(p).eq(message[p]),
-                ConsistentRead=True
+                ConsistentRead=True,
             )
             if not results["Count"] > 0:
                 return False
@@ -229,33 +230,36 @@ class Adapter:
         self.store(message)
         # self.handle_sent_message(schema, message, enactment)
         print("Schema is " + str(schema))
-        payload = {
-            "message": message,
-            "enactment": enactment
-        }
+        payload = {"message": message, "enactment": enactment}
 
-        payload = json.dumps(payload).encode('utf-8')
+        payload = json.dumps(payload).encode("utf-8")
         reactor = reactors.get(schema["name"])
         if reactor:
             logger.info("Invoking reactor: {}".format(reactor))
             response = client.invoke(
-                FunctionName=reactor, InvocationType='Event', LogType='Tail', ClientContext='Amit', Payload=payload)
+                FunctionName=reactor,
+                InvocationType="Event",
+                LogType="Tail",
+                ClientContext="Amit",
+                Payload=payload,
+            )
             print(response)
 
-        logger.debug("Sending message {} to {}".format(
-            message, self.configuration[to]))
+        logger.debug("Sending message {} to {}".format(message, self.configuration[to]))
         print("Sending message to Emitter")
 
-        payload = {
-            "to": str(self.configuration[to]),
-            "parameters": message
-        }
+        payload = {"to": str(self.configuration[to]), "parameters": message}
         # requests.post(self.configuration[to],
         # json=message
         #
-        payload = json.dumps(payload).encode('utf-8')
-        response = client.invoke(FunctionName=ROLE+'Emitter', InvocationType='Event',
-                                 LogType='Tail', ClientContext='Amit', Payload=payload)
+        payload = json.dumps(payload).encode("utf-8")
+        response = client.invoke(
+            FunctionName=ROLE + "Emitter",
+            InvocationType="Event",
+            LogType="Tail",
+            ClientContext="Amit",
+            Payload=payload,
+        )
         print(response)
 
         return True, message
@@ -269,9 +273,10 @@ class Adapter:
         def handle_message(message, enactment):
             'do stuff'
         """
+
         def register_handler(handler):
-            self.sent_handlers[json.dumps(
-                schema, separators=(',', ':'))] = handler
+            self.sent_handlers[json.dumps(schema, separators=(",", ":"))] = handler
+
         return register_handler
 
     def received(self, schema):
@@ -283,17 +288,17 @@ class Adapter:
         def handle_message(message, enactment):
             'do stuff'
         """
+
         def register_handler(handler):
-            self.received_handlers[json.dumps(
-                schema, separators=(',', ':'))] = handler
+            self.received_handlers[json.dumps(schema, separators=(",", ":"))] = handler
+
         return register_handler
 
     def handle_sent_message(self, schema, message, enactment):
         """
         Dispatch user-specified handler for schema, passing message and enactment.
         """
-        handler = self.sent_handlers.get(
-            json.dumps(schema, separators=(',', ':')))
+        handler = self.sent_handlers.get(json.dumps(schema, separators=(",", ":")))
         if handler:
             handler(message, enactment)
 
@@ -301,10 +306,10 @@ class Adapter:
         """
         Dispatch user-specified handler for schema, passing message and enactment.
         """
-        handler = self.received_handlers.get(
-            json.dumps(schema, separators=(',', ':')))
+        handler = self.received_handlers.get(json.dumps(schema, separators=(",", ":")))
         if handler:
             handler(message, enactment)
+
 
 #
 # Code copied from aws.py
@@ -318,19 +323,19 @@ def offline():
 
 
 def lambda_client():
-    endpoint_url = 'http://localhost:3002/' if offline() else None
-    return boto3.client('lambda', endpoint_url=endpoint_url)
+    endpoint_url = "http://localhost:3002/" if offline() else None
+    return boto3.client("lambda", endpoint_url=endpoint_url)
 
 
 def dynamo():
-    endpoint_url = 'http://localhost:8000/' if offline() else None
-    dynamodb = boto3.resource('dynamodb', endpoint_url=endpoint_url)
+    endpoint_url = "http://localhost:8000/" if offline() else None
+    dynamodb = boto3.resource("dynamodb", endpoint_url=endpoint_url)
     return dynamodb
 
 
 def dynamo_client():
-    endpoint_url = 'http://localhost:8000/' if offline() else None
-    client = boto3.client('dynamodb', endpoint_url=endpoint_url)
+    endpoint_url = "http://localhost:8000/" if offline() else None
+    client = boto3.client("dynamodb", endpoint_url=endpoint_url)
     return client
 
 
@@ -338,8 +343,8 @@ def dynamo_table(name):
     return dynamo().Table(name)
 
 
-adapter = Adapter(ROLE, protocol, configuration, ROLE+'History')
-client = boto3.client('lambda')
+adapter = Adapter(ROLE, protocol, configuration, ROLE + "History")
+client = boto3.client("lambda")
 
 
 def lambda_handler(event, context):
