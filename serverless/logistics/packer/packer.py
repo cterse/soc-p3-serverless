@@ -33,7 +33,7 @@ def Wrapped(message, enactment):
 @adapter.received(protocol['messages']['Labeled'])
 def Labeled(message, enactment):
     print("Received Labeled: {}".format(message))
-    packed = [m for m in enactment if m.get('packed')]
+    packed = [m for m in enactment if m.get('status')]
     unpacked = [m for m in enactment
                 if m.get('itemID') and
                 not any(p.get('itemID') == m['itemID'] for p in packed)]
