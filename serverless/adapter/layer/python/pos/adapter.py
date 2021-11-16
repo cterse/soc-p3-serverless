@@ -7,9 +7,9 @@ import datetime
 import threading
 import sys
 
-FORMAT = '%(asctime)-15s %(message)s'
+FORMAT = "%(asctime)-15s %(message)s"
 logging.basicConfig(format=FORMAT, level=logging.DEBUG)
-logger = logging.getLogger('pos')
+logger = logging.getLogger("pos")
 
 
 def now():
@@ -19,7 +19,11 @@ def now():
 def match_schema(schemas, message):
     for schema in schemas:
         # find schema with exactly the same parameters (except nils, which should not be bound)
-        if not set(schema['ins']).union(schema['outs']).symmetric_difference(message.keys()):
+        if (
+            not set(schema["ins"])
+            .union(schema["outs"])
+            .symmetric_difference(message.keys())
+        ):
             return schema
 
 
@@ -32,10 +36,7 @@ def check_integrity(message, enactment):
     """
     # may not the most efficient algorithm for large histories
     # might be better to ask the database to find messages that don't match
-    return all(message[p] == m[p]
-               for p in message.keys()
-               for m in enactment
-               if p in m)
+    return all(message[p] == m[p] for p in message.keys() for m in enactment if p in m)
 
 
 def check_outs(schema, enactment):
@@ -43,9 +44,7 @@ def check_outs(schema, enactment):
     Make sure none of the outs have been bound.
     Only use this check if the message is being sent.
     """
-    return not any(m.get(p)
-                   for m in enactment
-                   for p in schema['outs'])
+    return not any(m.get(p) for m in enactment for p in schema["outs"])
 
 
 class Adapter:
@@ -72,7 +71,7 @@ class Adapter:
         """
         Get all of the messages that match the keys of a message, as specified by schema
         """
-        keys = schema['keys']
+        keys = schema["keys"]
 
         # we're using the first key as the partition key
         key_exp = Key(keys[0]).eq(message[keys[0]])
@@ -84,52 +83,57 @@ class Adapter:
                 exp = Attr(k).not_exists() | Attr(k).eq(message[k])
                 f = f & exp if f else exp
 
-            response = self.db.query(KeyConditionExpression=key_exp,
-                                     FilterExpression=f)
+            response = self.db.query(KeyConditionExpression=key_exp, FilterExpression=f)
         else:
             response = self.db.query(KeyConditionExpression=key_exp)
 
-        messages = response['Items']
+        messages = response["Items"]
         for m in messages:
-            m.pop('_time')  # _time not part of the message
+            m.pop("_time")  # _time not part of the message
         return messages
 
     def get_schema(self, to, message):
-        return match_schema([schema for schema in self.protocol['messages'].values()
-                             if schema['to'] == to],
-                            message)
+        return match_schema(
+            [
+                schema
+                for schema in self.protocol["messages"].values()
+                if schema["to"] == to
+            ],
+            message,
+        )
 
     def receive(self, message):
         schema = self.get_schema(self.role, message)
         if not schema:
+            desc = "Message does not match any schema: "
+            logger.warn(f"{desc}{message}")
             return {
                 "statusCode": 500,
-                "body": "Message does not match any schema: " + json.dumps(message)
+                "body": desc + json.dumps(message),
             }
 
         enactment = self.get_enactment(schema, message)
 
         if message in enactment:
+            desc = "Duplicate message"
+            logger.info(f"{desc}: {message}")
             return {
                 "statusCode": 200,
-                "body": "Duplicate message " + json.dumps(message)
+                "body": desc + ": " + json.dumps(message),
             }
 
         if check_integrity(message, enactment):
+            logger.info(f"Received message: {message}")
             self.store(message)
             self.handle_received_message(schema, message, enactment)
-            return {
-                "statusCode": 200,
-                "body": json.dumps(message)
-            }
+            return {"statusCode": 200, "body": json.dumps(message)}
         else:
-            return {
-                "statusCode": 500,
-                "body": 'Message does not satisfy integrity: ' + json.dumps(message)
-            }
+            error = "Message does not satisfy integrity: "
+            logger.warn(f"{error}{message}")
+            return {"statusCode": 500, "body": error + json.dumps(message)}
 
     def handler(self, event, context):
-        message = json.loads(event['body'])
+        message = json.loads(event["body"])
         print("Received message: {}".format(message))
         return self.receive(message)
 
@@ -147,10 +151,9 @@ class Adapter:
         """
         Make sure that all 'in' parameters are bound and matched by some message in the history
         """
-        for p in schema['ins']:
+        for p in schema["ins"]:
             results = self.db.scan(
-                Select='COUNT',
-                FilterExpression=Attr(p).eq(message[p])
+                Select="COUNT", FilterExpression=Attr(p).eq(message[p])
             )
             if not results["Count"] > 0:
                 return False
@@ -177,11 +180,8 @@ class Adapter:
 
         self.store(message)
         self.handle_sent_message(schema, message, enactment)
-        logger.debug("Sending message {} to {}".format(
-            message, self.configuration[to]))
-        requests.post(self.configuration[to],
-                      json=message
-                      )
+        logger.debug("Sending message {} to {}".format(message, self.configuration[to]))
+        requests.post(self.configuration[to], json=message)
         return True, message
 
     def sent(self, schema):
@@ -193,9 +193,11 @@ class Adapter:
         def handle_message(message, enactment):
             'do stuff'
         """
+
         def register_handler(handler):
-            self.sent_handlers[json.dumps(
-                schema, separators=(',', ':'))] = handler
+            self.sent_handlers[json.dumps(schema, separators=(",", ":"))] = handler
+            return handler
+
         return register_handler
 
     def received(self, schema):
@@ -207,17 +209,18 @@ class Adapter:
         def handle_message(message, enactment):
             'do stuff'
         """
+
         def register_handler(handler):
-            self.received_handlers[json.dumps(
-                schema, separators=(',', ':'))] = handler
+            self.received_handlers[json.dumps(schema, separators=(",", ":"))] = handler
+            return handler
+
         return register_handler
 
     def handle_sent_message(self, schema, message, enactment):
         """
         Dispatch user-specified handler for schema, passing message and enactment.
         """
-        handler = self.sent_handlers.get(
-            json.dumps(schema, separators=(',', ':')))
+        handler = self.sent_handlers.get(json.dumps(schema, separators=(",", ":")))
         if handler:
             handler(message, enactment)
 
@@ -225,7 +228,6 @@ class Adapter:
         """
         Dispatch user-specified handler for schema, passing message and enactment.
         """
-        handler = self.received_handlers.get(
-            json.dumps(schema, separators=(',', ':')))
+        handler = self.received_handlers.get(json.dumps(schema, separators=(",", ":")))
         if handler:
             handler(message, enactment)
