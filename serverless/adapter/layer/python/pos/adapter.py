@@ -173,19 +173,24 @@ class Adapter:
         enactment = self.get_enactment(schema, message)
 
         if not check_outs(schema, enactment):
-            return False, "Failed out check: {}".format(message)
+            return False, f"Failed out check: {message}"
 
         if not check_integrity(message, enactment):
-            return False, "Failed integrity check: {}".format(message)
+            return False, f"Failed integrity check: {message}"
 
         if not self.check_dependencies(schema, message):
-            return False, "Failed dependency check: {}".format(message)
+            return False, f"Failed dependency check: {message}"
 
         self.store(message)
         self.handle_sent_message(schema, message, enactment)
-        logger.debug("Sending message {} to {}".format(message, self.configuration[to]))
-        requests.post(self.configuration[to], json=message)
-        return True, message
+        logger.info("Sending message {} to {}".format(message, self.configuration[to]))
+        response = requests.post(self.configuration[to], json=message)
+        if response.ok:
+            logger.info(f"Message successfully delivered")
+            return True, message
+        else:
+            logger.info(f"Failed to deliver message: {response.text}")
+            return False, message
 
     def sent(self, schema):
         """
