@@ -67,6 +67,9 @@ class Adapter:
 
         self.db = dynamo_table(history_table_name)
 
+        if role not in configuration["roles"]:
+            logger.error(f"Role name is not declared in protocol specification: {role}")
+
     def get_enactment(self, schema, message):
         """
         Get all of the messages that match the keys of a message, as specified by schema
