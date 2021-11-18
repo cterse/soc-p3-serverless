@@ -32,9 +32,3 @@
       curl -X POST -H 'Content-Type: application/json' ${APPLICATION_ENDPOINT}/orders/messages -d '{"orderID": 1, "address": "Lancaster", "items":"bat,ball"}'
       #+end_src
 
-** Future Work
-*** Make communication asynchronous
-    Right now the message handlers are invoked during the HTTP request,
-*** Improve enactments
-    The enactment data currently passed to the message handlers contains only a list of related messages.
-    It should be extended to include the parameter bindings, for easier access
