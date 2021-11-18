@@ -29,6 +29,6 @@
       #+end_src
    5. Create an order in the Orders table via POST or the AWS Console
       #+begin_src
-      curl -X POST -H 'Content-Type: application/json' ${APPLICATION_ENDPOINT}/orders/messages -d '{"orderID": 1, "address": "Lancaster", "items":"bat,ball"}'
+      curl -X POST -H 'Content-Type: application/json' ${APPLICATION_ENDPOINT}/orders -d '{"orderID": 1, "address": "Lancaster", "items":"bat,ball"}'
       #+end_src
 
