@@ -67,8 +67,10 @@ class Adapter:
 
         self.db = dynamo_table(history_table_name)
 
-        if role not in configuration["roles"]:
+        if role not in protocol["roles"]:
             logger.error(f"Role name is not declared in protocol specification: {role}")
+        if role not in configuration:
+            logger.error(f"Role binding not declared in configuration: {role}")
 
     def get_enactment(self, schema, message):
         """
